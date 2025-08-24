@@ -1,0 +1,123 @@
+/* -------- Navbar หลัก -------- */
+.navbar {
+  background: #000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  transition: all 0.3s ease;
+}
+
+/* Logo */
+.navbar img {
+  height: 2.5rem;
+  transition: transform 0.3s ease;
+}
+.navbar img:hover { transform: scale(1.05); }
+
+.navbar-container { padding-left: 20px; padding-right: 24px; }
+.navbar-logo { margin-left: 16px; }
+.navbar-logo-link { padding-left: 16px; }
+
+/* -------- ลิงก์เมนู -------- */
+.menu {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.navlink {
+  position: relative;
+  font-size: 1rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.8);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.navlink:hover { color: #fff; }
+
+/* active link */
+.navlink.active::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -6px;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+}
+
+/* -------- ปุ่ม/แอ็กชัน -------- */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.nav-actions a,
+.nav-actions button {
+  color: rgba(255,255,255,0.85);
+  padding: 0.5rem;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+.nav-actions a:hover,
+.nav-actions button:hover {
+  color: #fff;
+  background-color: rgba(255,255,255,0.08);
+  transform: translateY(-1px);
+}
+.nav-actions svg { stroke: #fff; }
+
+/* -------- Mobile -------- */
+@media (max-width: 768px) {
+  .menu {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    height: 100vh;
+    width: 75%;
+    max-width: 300px;
+    background: #000;
+    color: #fff;
+    box-shadow: -4px 0 16px rgba(0,0,0,0.4);
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 2rem;
+    transition: right 0.3s ease;
+  }
+  .menu.open { right: 0; }
+
+  .navlink {
+    font-size: 1.2rem;
+    padding: 0.75rem 0;
+    width: 100%;
+    text-align: left;
+    color: rgba(255,255,255,0.9);
+  }
+
+  .close-menu {
+    position: absolute;
+    top: 1rem; right: 1rem;
+    padding: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  .close-menu svg {
+    width: 1.5rem; height: 1.5rem;
+    stroke: #fff;
+  }
+}
+
+/* -------- Desktop -------- */
+@media (min-width: 769px) {
+  .menu {
+    display: flex !important;
+    position: static;
+    height: auto;
+    width: auto;
+    background: none;
+    box-shadow: none;
+    padding: 0;
+  }
+}

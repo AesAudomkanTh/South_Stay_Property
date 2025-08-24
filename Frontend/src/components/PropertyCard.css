@@ -1,0 +1,125 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root{
+  --card-radius: 22px;
+  --img-radius: 20px;
+  --border: #e8e6e1;
+  --shadow: 0 10px 30px rgba(0,0,0,.06);
+  --text: #0f172a;
+  --muted:#5b5f66;
+  --accent:#000;            /* สีดำหลัก ใช้กับหัวใจ/ลูกศร */
+  --badge:#e8d6bf;          /* พื้นป้ายแนะนำ */
+}
+
+*{ font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+
+.pgrid{
+  display:flex; flex-wrap:wrap; gap:28px;
+  justify-content:center; padding: 8px;
+}
+
+/* ----- Card ----- */
+.pcard{
+  width:min(22rem, 92vw);
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius: var(--card-radius);
+  padding:10px;
+  box-shadow: var(--shadow);
+  cursor:pointer;
+  transition: transform .2s ease, box-shadow .2s ease;
+  outline:none;
+}
+.pcard:hover{ transform: translateY(-2px); box-shadow: 0 14px 40px rgba(0,0,0,.08); }
+
+/* ----- Image wrap ----- */
+.pcard__imgwrap{
+  position:relative;
+  border-radius: var(--img-radius);
+  overflow:hidden;
+  aspect-ratio: 16 / 11;    /* ใกล้เคียงภาพตัวอย่าง */
+  background:#f1f3f5;
+}
+.pcard__img{ width:100%; height:100%; object-fit:cover; display:block; }
+.pcard__img.placeholder{ display:grid; place-items:center; color:#999; }
+
+/* badge “แนะนำ” */
+.pcard__badge{
+  position:absolute; top:10px; left:10px;
+  display:inline-flex; align-items:center; gap:6px;
+  background: var(--badge);
+  color:#000; font-weight:700; font-size:.9rem;
+  padding:6px 10px; border-radius:10px;
+}
+.pcard__badge .ico{ width:18px; height:18px; fill:#000; }
+
+/* heart button */
+.pcard__heart{
+  position:absolute; top:10px; right:10px;
+  width:40px; height:40px; border-radius:999px;
+  background:#fff;
+  border:none; display:grid; place-items:center;
+  box-shadow: 0 4px 12px rgba(0,0,0,.16);
+  cursor:pointer;
+}
+.pcard__heart .ico{
+  width:22px; height:22px; fill:transparent; stroke:none; 
+}
+.pcard__heart.active .ico{ fill:#e11d48; }         /* สีแดงเมื่อ favorite */
+
+/* next arrow */
+.pcard__nav.next{
+  position:absolute; top:50%; right:10px; transform: translateY(-50%);
+  width:40px; height:40px; border-radius:999px;
+  background:#fff; color:#000; border:none;
+  display:grid; place-items:center;
+  box-shadow: 0 4px 12px rgba(0,0,0,.16);
+  cursor:pointer;
+}
+.pcard__nav .ico{ width:22px; height:22px; }
+
+/* counter 1/6 */
+.pcard__counter{
+  position:absolute; right:12px; bottom:10px;
+  background:rgba(0,0,0,.55); color:#fff;
+  font-weight:600; font-size:.9rem;
+  padding:6px 10px; border-radius:12px;
+}
+
+/* ----- Texts under image ----- */
+.pcard__title{
+  color:var(--text);
+  font-weight:700;
+  font-size:1.05rem;
+  line-height:1.35;
+  margin:12px 8px 2px;
+}
+.pcard__poster{
+  color:var(--muted);
+  font-size:.9rem;
+  margin:0 8px 8px;
+}
+
+/* price + specs row */
+.pcard__meta{
+  display:grid; grid-template-columns: auto 1fr; align-items:end;
+  gap:12px; margin: 0 8px 6px;
+}
+.pcard__price{
+  display:flex; align-items:baseline; gap:6px; white-space:nowrap;
+}
+.pcard__price .cur{ font-weight:800; font-size:1.1rem; }
+.pcard__price .num{ font-weight:800; font-size:1.35rem; }
+.pcard__price .suffix{ font-weight:800; font-size:1.05rem; }
+
+.pcard__specs{
+  display:grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items:center;
+  gap:10px;
+}
+.pcard__specs .sep{
+  width:1px; height:22px; background:#e6e6e6;
+}
+.spec{ text-align:center; }
+.spec__num{ font-weight:800; font-size:1.05rem; color:#111; }
+.spec__label{ font-size:.85rem; color:#6b7280; }
+

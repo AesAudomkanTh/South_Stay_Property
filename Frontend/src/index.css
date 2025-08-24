@@ -1,0 +1,38 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Outfit:wght@100..900&family=Playfair:ital,opsz,wght@0,5..1200,300..900;1,5..1200,300..900&display=swap');
+
+
+* {
+
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Montserrat", sans-serif;
+}
+
+body {
+    /* background:  url('./assets/bgg.jpg')no-repeat; */
+    backdrop-filter: blur(5px);
+    background-position: center;
+    min-height: 100vh;
+}
+
+a {
+
+    text-decoration: none;
+}
+
+/* -- global reset ที่ปลอดภัยต่อเลย์เอาต์เดิม -- */
+html, body, #root {
+  height: 100%;
+  background: #0b0b0b;   /* ให้พื้นหลังเข้มเหมือนหน้า Hero */
+}
+
+body {
+  margin: 0;             /* กันเส้นขาวจาก margin เริ่มต้นของ body */
+}
+
+/* ถ้าคอนเทนต์ขยับทับ navbar ให้เว้นระยะข้างบนด้วย */
+.main-content {
+  padding-top: 84px;     /* สูงประมาณความสูง navbar ของคุณ */
+}

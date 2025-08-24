@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+
+<body>
+    <input id="token" placeholder="paste JWT here" style="width:420px" />
+    <button id="connect">Connect</button>
+    <br><br>
+    <input id="to" placeholder="to_user_id" />
+    <input id="text" placeholder="message" />
+    <button id="send">Send DM</button>
+    <pre id="log" style="background:#111;color:#0f0;padding:10px;"></pre>
+
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script>
+        let socket;
+        const log = (m) => document.getElementById('log').textContent += m + "\n";
+
+        document.getElementById('connect').onclick = () => {
+            const token = document.getElementById('token').value.trim();
+            socket = io("http://localhost:5000", {
+                auth: { token },
+                transports: ["websocket"]   // <-- บังคับ WS อย่างเดียว
+            });
+            socket.on("connect", () => log("connected: " + socket.id));
+            socket.on("connect_error", (e) => log("connect_error: " + e.message));
+            socket.on("dm", (msg) => log("dm: " + JSON.stringify(msg)));
+            socket.on("dm:ack", (msg) => log("ack: " + JSON.stringify(msg)));
+        };
+
+        document.getElementById('send').onclick = () => {
+            const to = document.getElementById('to').value.trim();
+            const text = document.getElementById('text').value;
+            socket.emit("dm", { to_user_id: to, text });
+        };
+    </script>
+</body>
+
+</html>

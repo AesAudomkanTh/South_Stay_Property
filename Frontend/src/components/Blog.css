@@ -1,0 +1,138 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+* {
+  font-family: 'Poppins', sans-serif;
+}
+
+.blog-container {
+  padding: 2rem 1rem;
+}
+
+.blog-title {
+  font-size: 1.875rem; /* text-3xl */
+  font-weight: 600;
+  text-align: center;
+  margin: 0 auto;
+}
+
+.blog-description {
+  font-size: 0.875rem; /* text-sm */
+  color: #64748b; /* text-slate-500 */
+  text-align: center;
+  margin-top: 0.5rem;
+  max-width: 40rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.blog-list {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
+  padding-top: 3rem;
+  flex-wrap: wrap;
+}
+
+.blog-card {
+  width: 100%;
+  max-width: 18rem; /* 72 */
+  transition: transform 0.3s;
+}
+
+.blog-card:hover {
+  transform: translateY(-2px);
+}
+
+.blog-image {
+  border-radius: 0.75rem; /* rounded-xl */
+  width: 100%;
+  height: auto;
+}
+
+.blog-card-title {
+  font-size: 1rem; /* text-base */
+  color: #0f172a; /* text-slate-900 */
+  font-weight: 500;
+  margin-top: 0.75rem;
+}
+
+.blog-category {
+  font-size: 0.75rem; /* text-xs */
+  color: #4f46e5; /* text-indigo-600 */
+  font-weight: 500;
+  margin-top: 0.25rem;
+}
+
+/* Blog.css */
+.blog-card {
+  display: block;            /* ให้ลิงก์เป็นบล็อกทั้งการ์ด */
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.blog-card:hover .blog-card-title {
+  text-decoration: underline;
+}
+/* === Dark theme overrides for Blog === */
+.blog-container {
+  background: #000;     /* พื้นหลังดำ */
+  color: #fff;          /* ข้อความขาว */
+  min-height: 100vh;    /* ให้ดำเต็มหน้าจอ */
+  padding: 2rem 1rem;   /* คง padding เดิมไว้ */
+}
+
+/* หัวเรื่อง/คำอธิบายด้านบน */
+.blog-title { color: #fff; }
+.blog-description { color: #fff; }
+
+/* การ์ด + ลิงก์ให้ตามสีของ .blog-container */
+.blog-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;       /* ดึงสีจากพ่อ (คือสีขาว) */
+  cursor: pointer;
+  transition: transform .3s, box-shadow .2s;
+}
+.blog-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(255,255,255,.06);
+}
+.blog-card:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* ภาพ */
+.blog-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+}
+
+/* ตัวหนังสือบนการ์ด */
+.blog-card-title {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-top: 0.75rem;
+  color: #fff;          /* ขาว */
+}
+
+.blog-category {
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-top: 0.25rem;
+  color: #fff;          /* ขาว (ถ้าอยากมีเฉด ลอง #c7d2fe) */
+}
+
+/* layout รายการคงเดิม */
+.blog-list {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
+  padding-top: 3rem;
+  flex-wrap: wrap;
+}
+.blog-card { background: #0b0b0b; padding: 0.75rem; border-radius: 0.75rem; }

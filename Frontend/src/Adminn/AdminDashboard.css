@@ -1,0 +1,209 @@
+/* =========================
+   AdminDashboard.css (scoped)
+   ทุกกฎอยู่ใต้ .admin-shell เพื่อลดผลกระทบกับหน้าอื่น
+   ========================= */
+:root {
+  --adm-bg: #f6f9fc;
+  --adm-card: #fff;
+  --adm-text: #0f172a;          /* slate-900 */
+  --adm-muted: #64748b;         /* slate-500 */
+  --adm-border: #e2e8f0;        /* slate-200 */
+  --adm-ring: 0 0 0 3px rgba(15, 23, 42, .12);
+
+  --adm-primary: #0f172a;       /* ดำ-น้ำเงิน */
+  --adm-primary-600: #111827;
+  --adm-primary-50: #f8fafc;
+
+  --adm-success: #10b981;       /* emerald-500 */
+  --adm-warning: #f59e0b;       /* amber-500 */
+  --adm-danger:  #ef4444;       /* rose-500 */
+  --adm-blue:    #3b82f6;       /* blue-500 */
+  --adm-violet:  #7c3aed;       /* violet-600 */
+
+  --adm-radius: 16px;
+  --adm-radius-lg: 20px;
+}
+
+/* ===== Shell & Layout ===== */
+.admin-shell {
+  min-height: 100vh;
+  background: var(--adm-bg);
+  color: var(--adm-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans Thai", "Prompt", sans-serif;
+}
+
+.admin-shell .border {
+  border-color: var(--adm-border) !important;
+}
+
+.admin-shell header {
+  border-bottom-color: var(--adm-border) !important;
+}
+
+/* ===== Top nav chips (tabs) ===== */
+.admin-shell nav {
+  background: #eef2f7;
+}
+.admin-shell nav button {
+  border-radius: 10px;
+}
+.admin-shell nav button.bg-white {
+  box-shadow: 0 2px 10px rgba(2, 8, 20, .06);
+}
+
+/* ===== Cards / Sections ===== */
+.admin-shell .rounded-2xl {
+  border-radius: var(--adm-radius-lg) !important;
+}
+.admin-shell .shadow-sm {
+  box-shadow: 0 10px 30px rgba(2, 8, 20, .05) !important;
+}
+.admin-shell .bg-white {
+  background: var(--adm-card) !important;
+}
+.admin-shell .quick-actions .btn {
+  width: 100%;
+}
+
+/* ===== Stats ===== */
+.admin-shell .stat-icon {
+  display:flex; align-items:center; justify-content:center;
+  width:48px; height:48px; border-radius:14px;
+  background: #f2f5f9; color: var(--adm-text);
+  box-shadow: inset 0 0 0 1px var(--adm-border);
+}
+
+/* ===== Table ===== */
+.admin-shell table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.admin-shell thead {
+  background: #f1f5f9 !important;
+}
+.admin-shell th {
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--adm-muted);
+}
+.admin-shell tbody tr {
+  transition: background .15s ease, box-shadow .15s ease;
+}
+.admin-shell tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* ===== Badge ===== */
+.admin-shell .badge {
+  border-radius: 999px;
+  padding: .22rem .6rem;
+  border: 1px solid var(--adm-border);
+  background: #fff;
+}
+.admin-shell .badge.bg-amber-100 { background:#fff7ed; color:#b45309; border-color:#fde68a; }
+.admin-shell .badge.bg-green-100 { background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
+.admin-shell .badge.bg-blue-100  { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+.admin-shell .badge.bg-violet-100{ background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
+.admin-shell .badge.bg-slate-100 { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
+
+/* ===== Buttons ===== */
+.admin-shell .btn {
+  display:inline-flex; align-items:center; justify-content:center;
+  font-weight:600; border-radius:12px; padding:.55rem .9rem;
+  transition: transform .05s ease, background .15s ease, color .15s ease, box-shadow .15s ease;
+  user-select:none; -webkit-tap-highlight-color:transparent;
+}
+.admin-shell .btn:active { transform: translateY(1px); }
+
+.admin-shell .btn-default { background:var(--adm-primary); color:#fff; }
+.admin-shell .btn-default:hover { background:var(--adm-primary-600); }
+
+.admin-shell .btn-outline {
+  border:1px solid var(--adm-border); background:#fff; color:var(--adm-text);
+}
+.admin-shell .btn-outline:hover { background:#f8fafc; }
+
+.admin-shell .btn-ghost { background: transparent; color: var(--adm-muted); }
+.admin-shell .btn-ghost:hover { background: #f8fafc; color: var(--adm-text); }
+
+.admin-shell .btn-success { background: var(--adm-success); color:#fff; }
+.admin-shell .btn-success:hover { filter: brightness(1.05); }
+
+.admin-shell .btn-warning { background: var(--adm-warning); color:#fff; }
+.admin-shell .btn-warning:hover { filter: brightness(1.05); }
+
+.admin-shell .btn-danger { background: var(--adm-danger); color:#fff; }
+.admin-shell .btn-danger:hover { filter: brightness(1.05); }
+
+/* size */
+.admin-shell .btn-sm { padding:.35rem .65rem; font-size:.8rem; }
+.admin-shell .btn-lg { padding:.7rem 1rem; }
+
+/* ===== Inputs ===== */
+.admin-shell input[type="text"],
+.admin-shell input[type="email"],
+.admin-shell input[type="number"],
+.admin-shell select {
+  width: 100%;
+  border:1px solid var(--adm-border);
+  border-radius: 12px;
+  padding: .65rem .8rem;
+  background:#fff;
+  color: var(--adm-text);
+  outline: none;
+  transition: box-shadow .15s ease, border-color .15s ease, background .15s ease;
+}
+.admin-shell input:focus,
+.admin-shell select:focus {
+  border-color: #cbd5e1;
+  box-shadow: var(--adm-ring);
+}
+
+/* ===== Drawer (edit side panel) ===== */
+.admin-shell .drawer {
+  border-top-left-radius: 18px;
+  border-bottom-left-radius: 18px;
+  box-shadow: -20px 0 40px rgba(2, 8, 20, .08);
+  border-left: 1px solid var(--adm-border);
+}
+.admin-shell .drawer .text-slate-600 { color: var(--adm-muted) !important; }
+
+/* ===== Modal (confirm) ===== */
+.admin-shell .modal-backdrop { backdrop-filter: blur(2px); }
+.admin-shell .modal-panel {
+  border-radius: 18px;
+  border: 1px solid var(--adm-border);
+}
+
+/* ===== Pagination ===== */
+.admin-shell .pagination .btn {
+  border-radius: 10px;
+}
+
+/* ===== “Quick Actions” panel ===== */
+.admin-shell .quick-actions .text-base { color: var(--adm-text); }
+.admin-shell .quick-actions .btn-default {
+  background: #0b1220; /* น้ำเงินเข้ม-ดำ */
+}
+.admin-shell .quick-actions .btn-default:hover {
+  background: #101828;
+}
+
+/* ===== Utilities ===== */
+.admin-shell .text-slate-900 { color: var(--adm-text) !important; }
+.admin-shell .text-slate-800 { color: #1f2937 !important; }
+.admin-shell .text-slate-600 { color: var(--adm-muted) !important; }
+.admin-shell .text-slate-500 { color: var(--adm-muted) !important; }
+
+/* ไฮไลต์ค่า/ตัวเลขในสถิติ */
+.admin-shell .stat-value {
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+/* Small screens: spacing ให้โปร่งขึ้นนิดนึง */
+@media (max-width: 640px) {
+  .admin-shell .px-6 { padding-left: 1rem !important; padding-right: 1rem !important; }
+  .admin-shell .py-8 { padding-top: 1.25rem !important; padding-bottom: 1.25rem !important; }
+  .admin-shell .rounded-2xl { border-radius: 14px !important; }
+}

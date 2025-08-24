@@ -1,0 +1,62 @@
+/* ทั้งบล็อกเป็นพื้นดำ/ตัวอักษรขาว */
+.example-container {
+  background: #000;
+  color: #fff;
+}
+
+/* กล่องด้านใน: กึ่งกลางของหน้า */
+.example-inner {
+  max-width: 1200px;
+  margin-inline: auto;          /* center horizontally */
+  padding: 60px 20px;
+  text-align: center;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;          /* center children horizontally */
+}
+
+/* หัวข้อ/ย่อหน้า รับสีขาวจาก .example-inner อยู่แล้ว */
+.example-inner h1 { color: #fff; }
+.example-inner p  { color: #fff; }
+
+/* แถวรูป: จัดกลางทั้งแถว */
+.example-row {
+  display: flex;
+  justify-content: center;      /* center images horizontally */
+  align-items: center;          /* center vertically within row height */
+  gap: 24px;
+  width: 100%;
+  max-width: 80rem;             /* ~1280px */
+  height: 400px;
+  margin-top: 40px;
+}
+
+/* กล่องรูปแต่ละอัน */
+.example-block {
+  position: relative;
+  width: 220px;
+  height: 100%;
+  flex-grow: 1;
+  transition: width 0.5s ease;
+  overflow: hidden;
+}
+.example-block:hover { width: 100%; }
+
+.example-block img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* จอเล็ก: เรียงเป็นคอลัมน์และยังคงกึ่งกลาง */
+@media (max-width: 768px) {
+  .example-row {
+    flex-direction: column;
+    height: auto;
+  }
+  .example-block {
+    width: 100%;
+    height: 320px;
+  }
+}

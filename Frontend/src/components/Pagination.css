@@ -1,0 +1,57 @@
+.pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 20rem; 
+  font-weight: 500; 
+  color: #ffffff; 
+  margin: 0 auto; 
+  padding-top: 2rem;
+  min-height: 20svh;
+}
+
+.pagination-arrow {
+  border-radius: 9999px; 
+  background-color: rgba(255, 255, 255, 0.5);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.pagination-numbers {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem; 
+  font-size: 0.875rem; 
+  font-weight: 500;
+}
+
+.page-number {
+  height: 2.5rem; 
+  width: 2.5rem;  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.page-number.current {
+  color: #ffffff; 
+  border: 1px solid #dedede; 
+  border-radius: 9999px; 
+}
+
+
+ /* .pagination-container{ display:flex; gap:12px; align-items:center; justify-content:center; margin:18px 0 36px; }
+.pagination-arrow{ border:1px solid #e2e8f0; background:#fff; width:44px; height:44px; border-radius:12px; display:grid; place-items:center; cursor:pointer; box-shadow:0 1px 0 rgba(0,0,0,.02); }
+.pagination-arrow:disabled{ opacity:.5; cursor:not-allowed; }
+.rotate-180{ transform: rotate(180deg); }
+.pagination-numbers{ display:flex; align-items:center; gap:6px; }
+.page-number{ border:1px solid #e2e8f0; background:#fff; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:700; min-width:40px; text-align:center; }
+.page-number.current{ background:#0f172a; color:#fff; border-color:#0f172a; }
+.pagination-ellipsis{ color:#64748b; padding:0 4px; } */
