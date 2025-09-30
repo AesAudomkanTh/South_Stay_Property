@@ -4,7 +4,7 @@ import "./SignUp.css";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5050";
 
 export default function SignUp() {
   const navigate = useNavigate();

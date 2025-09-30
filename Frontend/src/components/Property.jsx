@@ -1,24 +1,17 @@
-import React from 'react'
-import Search from './Search'
-// import Blog from './Blog'
-import Pagination from './Pagination'
-import PropertyCard from './PropertyCard'
-
-
-
+// src/components/Property.jsx
+import React from "react";
+import Search from "./Search";
+import Pagination from "./Pagination";
 
 export default function Property() {
   return (
     <>
       <Search />
-      {/* <Blog /> */}
-      <PropertyCard />
       <Pagination />
-      
-     
     </>
-  )
+  );
 }
+
 
 
 

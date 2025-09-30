@@ -3,14 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import "./AdminDashboard.css";
 import toast from "react-hot-toast";
 
-/**
- * AdminDashboard.jsx
- * - ต่อกับ backend: /api/admin/users, /api/admin/posts, และ endpoints อื่นๆ ที่แนะนำไว้
- * - มี authFetch แนบ Bearer token อัตโนมัติ + console.debug ครบ
- * - ยังคงโครง UI เดิม (Badge, Button, DataTable ฯลฯ) แต่เชื่อมข้อมูลจริงแทน mock
- */
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5050";
 
 /* ----------------------------- */
 /* authFetch (แนบ token + debug) */
@@ -38,32 +31,33 @@ async function authFetch(url, options = {}) {
   console.debug("📩 [ADMIN] Response", { url, status: res.status, ok: res.ok, data });
 
   if (!res.ok) {
-    // พยายามดึง message ที่อ่านง่าย
-    const msg =
-      data?.message ||
-      data?.error ||
-      (typeof data === "string" ? data : `HTTP ${res.status}`);
+    const msg = data?.message || data?.error || (typeof data === "string" ? data : `HTTP ${res.status}`);
     throw new Error(msg);
   }
   return data;
 }
 
 /* ----------------------------- */
-/* API layer (ผูกกับ /api/admin)  */
+/* API layer                     */
 /* ----------------------------- */
 const api = {
   // USERS
   async listUsers() {
     const out = await authFetch(`${BASE_URL}/api/admin/users`, { method: "GET" });
-    // รองรับทั้ง {users:[...]} หรือ array ตรง ๆ
     return Array.isArray(out) ? out : out.users || [];
   },
-  async approveUser(user_id) {
-    // verify user (set verify_status = 'verified')
-    return await authFetch(`${BASE_URL}/api/admin/users/${user_id}/verify`, {
-      method: "POST",
-      body: JSON.stringify({ status: "verified" }),
-    });
+  async approveUser(user_id, status = "verified") {
+    // รองรับ backend ที่ทำ verify แยก
+    // ถ้าไม่มี endpoint นี้ในระบบคุณ ให้คงไว้เฉพาะ updateUser ด้านล่าง
+    try {
+      return await authFetch(`${BASE_URL}/api/admin/users/${user_id}/verify`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+    } catch (e) {
+      // fallback เผื่อไม่มี /verify
+      return await api.updateUser(user_id, { verify_status: status, status });
+    }
   },
   async updateUser(user_id, patch) {
     return await authFetch(`${BASE_URL}/api/admin/users/${user_id}`, {
@@ -78,19 +72,29 @@ const api = {
   },
 
   // POSTS
-  async listPosts() {
-    const out = await authFetch(`${BASE_URL}/api/admin/posts`, { method: "GET" });
+  async listPosts(status = "pending") {
+    const out = await authFetch(`${BASE_URL}/api/admin/posts?status=${encodeURIComponent(status)}`, {
+      method: "GET",
+    });
     return Array.isArray(out) ? out : out.posts || [];
   },
   async approvePost(post_id) {
+    // หลายโปรเจ็กต์ใช้ POST /approve
     return await authFetch(`${BASE_URL}/api/admin/posts/${post_id}/approve`, {
       method: "POST",
       body: JSON.stringify({ approve: true }),
     });
   },
+  async rejectPost(post_id) {
+    return await authFetch(`${BASE_URL}/api/admin/posts/${post_id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ approve: false }),
+    });
+  },
   async updatePost(post_id, patch) {
+    // ใช้ PUT เพื่อปรับ status/price/title
     return await authFetch(`${BASE_URL}/api/admin/posts/${post_id}`, {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(patch),
     });
   },
@@ -182,11 +186,11 @@ function Confirm({ open, onClose, onConfirm, title, message }) {
           <Button
             intent="danger"
             onClick={() => {
-              onConfirm();
+              onConfirm?.();
               onClose();
             }}
           >
-            Delete
+            Confirm
           </Button>
         </div>
       </div>
@@ -195,18 +199,18 @@ function Confirm({ open, onClose, onConfirm, title, message }) {
 }
 
 /* ----------------------------- */
-/* DataTable (Users & Posts ใช้ร่วม) */
+/* DataTable (ใช้ร่วม Users/Posts) */
 /* ----------------------------- */
-function DataTable({ columns, rows, getRowKey, searchKeys = [], onApprove, onEdit, onDelete }) {
+function DataTable({ columns, rows, getRowKey, searchKeys = [], onApprove, onReject, onEdit, onDelete, onInactivate }) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState({ key: null, dir: "asc" });
-  const pageSize = 8;
+  const pageSize = 10;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let out = rows || [];
-    if (q) {
+    if (q && searchKeys.length) {
       out = out.filter((r) => searchKeys.some((k) => String(r[k] ?? "").toLowerCase().includes(q)));
     }
     if (sort.key) {
@@ -264,7 +268,7 @@ function DataTable({ columns, rows, getRowKey, searchKeys = [], onApprove, onEdi
                   </button>
                 </th>
               ))}
-              {(onApprove || onEdit || onDelete) && (
+              {(onApprove || onReject || onEdit || onDelete || onInactivate) && (
                 <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
                   Actions
                 </th>
@@ -279,12 +283,22 @@ function DataTable({ columns, rows, getRowKey, searchKeys = [], onApprove, onEdi
                     {c.render ? c.render(row[c.key], row) : String(row[c.key] ?? "-")}
                   </td>
                 ))}
-                {(onApprove || onEdit || onDelete) && (
+                {(onApprove || onReject || onEdit || onDelete || onInactivate) && (
                   <td className="px-5 py-3.5 text-right text-sm">
                     <div className="flex items-center justify-end gap-2">
                       {onApprove && (
                         <Button size="sm" intent="success" onClick={() => onApprove(row)}>
                           Approve
+                        </Button>
+                      )}
+                      {onReject && (
+                        <Button size="sm" intent="warning" onClick={() => onReject(row)}>
+                          Reject
+                        </Button>
+                      )}
+                      {onInactivate && (
+                        <Button size="sm" intent="danger" onClick={() => onInactivate(row)}>
+                          Inactive
                         </Button>
                       )}
                       {onEdit && (
@@ -308,7 +322,7 @@ function DataTable({ columns, rows, getRowKey, searchKeys = [], onApprove, onEdi
 
       {filtered.length === 0 && (
         <div className="mt-6">
-          <Empty title="No results" hint="Try a different search query." />
+          <Empty title="No results" hint="Try a different search query or filter." />
         </div>
       )}
 
@@ -327,17 +341,22 @@ function DataTable({ columns, rows, getRowKey, searchKeys = [], onApprove, onEdi
               ‹ Prev
             </Button>
             <span className="text-xs text-slate-600">
-              Page {page} / {totalPages}
+              Page {page} / {Math.max(1, Math.ceil(filtered.length / pageSize))}
             </span>
             <Button
               size="sm"
               intent="ghost"
-              disabled={page === totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === Math.max(1, Math.ceil(filtered.length / pageSize))}
+              onClick={() => setPage((p) => Math.min(Math.max(1, Math.ceil(filtered.length / pageSize)), p + 1))}
             >
               Next ›
             </Button>
-            <Button size="sm" intent="ghost" disabled={page === totalPages} onClick={() => setPage(totalPages)}>
+            <Button
+              size="sm"
+              intent="ghost"
+              disabled={page === Math.max(1, Math.ceil(filtered.length / pageSize))}
+              onClick={() => setPage(Math.max(1, Math.ceil(filtered.length / pageSize)))}
+            >
               Last »
             </Button>
           </div>
@@ -351,52 +370,100 @@ function DataTable({ columns, rows, getRowKey, searchKeys = [], onApprove, onEdi
 /* Main Admin Dashboard           */
 /* ----------------------------- */
 export default function AdminDashboard() {
-  const [tab, setTab] = useState("dashboard"); // dashboard | users | posts
-  const [users, setUsers] = useState([]);
-  const [posts, setPosts] = useState([]);
+  const [tab, setTab] = useState("posts"); // posts | users
   const [loading, setLoading] = useState(true);
-  const [confirm, setConfirm] = useState({ open: false, onConfirm: null, title: "", message: "" });
+
+  // Users
+  const [users, setUsers] = useState([]);
+  const [usersFailed, setUsersFailed] = useState(false);
   const [editUser, setEditUser] = useState(null);
+
+  // Posts
+  const [posts, setPosts] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("pending"); // pending | active | rejected | inactive | sold
   const [editPost, setEditPost] = useState(null);
+
+  const [confirm, setConfirm] = useState({ open: false, onConfirm: null, title: "", message: "" });
+
+  async function loadUsersSafe() {
+    try {
+      const u = await api.listUsers();
+      setUsers(u);
+      setUsersFailed(false);
+    } catch (e) {
+      setUsersFailed(true);
+      console.warn("[ADMIN] /api/admin/users error, continue without users:", e?.message || e);
+      toast.error("โหลด users ไม่สำเร็จ (ซ่อนแท็บ Users ชั่วคราว)");
+    }
+  }
+
+  async function loadPosts(status = statusFilter) {
+    const p = await api.listPosts(status);
+    setPosts(p);
+  }
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        const [u, p] = await Promise.all([api.listUsers(), api.listPosts()]);
-        setUsers(u);
-        setPosts(p);
+        // พยายามโหลด users แบบไม่ให้ล้มทั้งหน้า
+        await loadUsersSafe();
+        // โหลด posts
+        await loadPosts("pending");
+        setStatusFilter("pending");
       } catch (err) {
         console.error("💥 [ADMIN] bootstrap error:", err);
-        toast.error(err.message || "โหลดข้อมูลแอดมินล้มเหลว");
+        toast.error(err.message || "โหลดข้อมูลล้มเหลว");
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
+  useEffect(() => {
+    // เปลี่ยน filter => reload posts
+    (async () => {
+      try {
+        setLoading(true);
+        await loadPosts(statusFilter);
+      } catch (err) {
+        console.error("💥 [ADMIN] load posts error:", err);
+        toast.error(err.message || "โหลดโพสต์ล้มเหลว");
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
+
+  /* ---------- Stats ---------- */
   const stats = useMemo(() => {
-    const pendingUsers = users.filter((u) => (u.verify_status || u.status) === "pending").length;
-    const pendingPosts = posts.filter((p) => (p.status || p.post_status) === "pending").length;
+    const usersActive =
+      users.filter((u) => (u.verify_status || u.status) === "verified" || (u.verify_status || u.status) === "active")
+        .length || 0;
+    const usersPending = users.filter((u) => (u.verify_status || u.status) === "pending").length || 0;
+
+    const pStatus = (p) => p.status || p.post_status;
+    const postsPending = posts.filter((p) => pStatus(p) === "pending").length || 0;
+    const postsActive = posts.filter((p) => pStatus(p) === "active" || pStatus(p) === "published").length || 0;
+
     return {
       users: users.length,
+      activeUsers: usersActive,
+      pendingUsers: usersPending,
       posts: posts.length,
-      pendingUsers,
-      pendingPosts,
-      activeUsers: users.filter((u) => (u.verify_status || u.status) === "verified" || (u.status === "active")).length,
-      publishedPosts: posts.filter((p) => (p.status || p.post_status) === "published" || (p.status === "active")).length,
+      pendingPosts: postsPending,
+      activePosts: postsActive,
     };
   }, [users, posts]);
 
   /* ---------- Users actions ---------- */
   async function handleApproveUser(row) {
     try {
-      await api.approveUser(row.user_id || row.id);
+      await api.approveUser(row.user_id || row.id, "verified");
       setUsers((list) =>
         list.map((u) =>
-          (u.user_id || u.id) === (row.user_id || row.id)
-            ? { ...u, verify_status: "verified", status: "active" }
-            : u
+          (u.user_id || u.id) === (row.user_id || row.id) ? { ...u, verify_status: "verified", status: "active" } : u
         )
       );
       toast.success("Verified user สำเร็จ");
@@ -408,7 +475,7 @@ export default function AdminDashboard() {
     setConfirm({
       open: true,
       title: "Delete user",
-      message: `Are you sure you want to delete ${row.username || row.name}? This action cannot be undone.`,
+      message: `แน่ใจหรือไม่ที่จะลบ ${row.username || row.name}? การกระทำนี้ย้อนกลับไม่ได้`,
       onConfirm: async () => {
         try {
           await api.deleteUser(row.user_id || row.id);
@@ -432,9 +499,7 @@ export default function AdminDashboard() {
     };
     try {
       await api.updateUser(id, patch);
-      setUsers((list) =>
-        list.map((u) => ((u.user_id || u.id) === id ? { ...u, ...patch } : u))
-      );
+      setUsers((list) => list.map((u) => ((u.user_id || u.id) === id ? { ...u, ...patch } : u)));
       setEditUser(null);
       toast.success("บันทึกผู้ใช้แล้ว");
     } catch (e) {
@@ -446,47 +511,61 @@ export default function AdminDashboard() {
   async function handleApprovePost(row) {
     try {
       await api.approvePost(row.post_id || row.id);
+      toast.success("อนุมัติโพสต์แล้ว");
       setPosts((list) =>
         list.map((p) =>
-          (p.post_id || p.id) === (row.post_id || row.id)
-            ? { ...p, status: "published", post_status: "published" }
-            : p
+          (p.post_id || p.id) === (row.post_id || row.id) ? { ...p, status: "active", post_status: "active" } : p
         )
       );
-      toast.success("อนุมัติโพสต์แล้ว");
     } catch (e) {
       toast.error(e.message || "อนุมัติโพสต์ไม่สำเร็จ");
     }
   }
-  function handleDeletePost(row) {
+
+  async function handleRejectPost(row) {
+    try {
+      await api.rejectPost(row.post_id || row.id);
+      toast.success("ปฏิเสธโพสต์แล้ว");
+      setPosts((list) =>
+        list.map((p) =>
+          (p.post_id || p.id) === (row.post_id || row.id) ? { ...p, status: "rejected", post_status: "rejected" } : p
+        )
+      );
+    } catch (e) {
+      toast.error(e.message || "ปฏิเสธโพสต์ไม่สำเร็จ");
+    }
+  }
+
+  function handleInactivatePost(row) {
     setConfirm({
       open: true,
-      title: "Delete post",
-      message: `Are you sure you want to delete "${row.title}"? This action cannot be undone.`,
+      title: "Set inactive",
+      message: `ต้องการเปลี่ยนสถานะเป็น inactive สำหรับ "${row.title}" ใช่ไหม?`,
       onConfirm: async () => {
         try {
-          await api.deletePost(row.post_id || row.id);
-          setPosts((list) => list.filter((p) => (p.post_id || p.id) !== (row.post_id || row.id)));
-          toast.success("ลบโพสต์แล้ว");
+          await api.updatePost(row.post_id || row.id, { status: "inactive" });
+          setPosts((list) =>
+            list.map((p) => (p.post_id === (row.post_id || row.id) ? { ...p, status: "inactive" } : p))
+          );
+          toast.success("เปลี่ยนสถานะเป็น inactive แล้ว");
         } catch (e) {
-          toast.error(e.message || "ลบโพสต์ไม่สำเร็จ");
+          toast.error(e.message || "เปลี่ยนสถานะไม่สำเร็จ");
         }
       },
     });
   }
+
   async function handleSavePost() {
     if (!editPost) return;
     const id = editPost.post_id || editPost.id;
     const patch = {
       title: editPost.title,
-      status: editPost.status || editPost.post_status,
-      price: editPost.price,
+      price: Number(editPost.price || 0),
+      status: editPost.status, // pending | active | rejected | inactive | sold
     };
     try {
       await api.updatePost(id, patch);
-      setPosts((list) =>
-        list.map((p) => ((p.post_id || p.id) === id ? { ...p, ...patch } : p))
-      );
+      setPosts((list) => list.map((p) => ((p.post_id || p.id) === id ? { ...p, ...patch } : p)));
       setEditPost(null);
       toast.success("บันทึกโพสต์แล้ว");
     } catch (e) {
@@ -536,7 +615,7 @@ export default function AdminDashboard() {
       sortable: true,
       render: (v, r) => {
         const s = v || r.post_status || "pending";
-        const intent = s === "published" || s === "active" ? "green" : s === "pending" ? "amber" : "red";
+        const intent = s === "active" || s === "published" ? "green" : s === "pending" ? "amber" : s === "rejected" ? "red" : "slate";
         return <Badge intent={intent}>{s}</Badge>;
       },
     },
@@ -557,6 +636,13 @@ export default function AdminDashboard() {
     },
   ];
 
+  /* ---------- Which tabs to show? ---------- */
+  const tabs = [
+    { id: "posts", label: `Posts (${stats.posts})` },
+    // แสดงแท็บ Users เฉพาะเมื่อโหลด users สำเร็จ
+    ...(!usersFailed ? [{ id: "users", label: `Users (${stats.users})` }] : []),
+  ];
+
   return (
     <div className="admin-shell min-h-screen bg-slate-50">
       {/* Top bar */}
@@ -573,11 +659,7 @@ export default function AdminDashboard() {
           </div>
 
           <nav className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
-            {[
-              { id: "dashboard", label: "Dashboard" },
-              { id: "users", label: `Users (${stats.users})` },
-              { id: "posts", label: `Posts (${stats.posts})` },
-            ].map((t) => (
+            {tabs.map((t) => (
               <button
                 key={t.id}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
@@ -597,104 +679,126 @@ export default function AdminDashboard() {
           <div className="py-24 text-center text-slate-500">Loading…</div>
         ) : (
           <>
-            {/* DASHBOARD TAB */}
-            {tab === "dashboard" && (
-              <section className="space-y-8">
-                <div className="grid grid-cols-1 gap-6 lg:gap-8 sm:grid-cols-2 lg:grid-cols-4">
-                  <StatCard
-                    title="Total Users"
-                    value={stats.users}
-                    sub={`${stats.activeUsers} active • ${stats.pendingUsers} pending`}
-                    icon={<span className="text-xl">👥</span>}
-                  />
-                  <StatCard
-                    title="Total Posts"
-                    value={stats.posts}
-                    sub={`${stats.publishedPosts} published • ${stats.pendingPosts} pending`}
-                    icon={<span className="text-xl">🏢</span>}
-                  />
-                  <StatCard
-                    title="Approval Queue"
-                    value={stats.pendingUsers + stats.pendingPosts}
-                    sub="Items awaiting review"
-                    icon={<span className="text-xl">✅</span>}
-                  />
-                  <StatCard
-                    title="Admins"
-                    value={users.filter((u) => (u.role || "").toString().toLowerCase() === "admin").length}
-                    sub="Users with elevated permissions"
-                    icon={<span className="text-xl">🛡️</span>}
-                  />
+            {/* POSTS TAB */}
+            {tab === "posts" && (
+              <section className="space-y-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">Posts</h2>
+                    <div className="text-xs text-slate-500">
+                      filter: <strong>{statusFilter}</strong> • {stats.posts} loaded
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                    >
+                      <option value="pending">pending</option>
+                      <option value="active">active</option>
+                      <option value="rejected">rejected</option>
+                      <option value="inactive">inactive</option>
+                      <option value="sold">sold</option>
+                    </select>
+                    <Button intent="outline" onClick={() => loadPosts(statusFilter)}>
+                      Reload
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
-                    <h3 className="text-base font-semibold text-slate-900">Recent Pending Items</h3>
-                    <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                      <div className="rounded-xl border border-slate-200 p-5">
-                        <div className="mb-3 flex items-center justify-between">
-                          <h4 className="text-sm font-medium text-slate-800">Users</h4>
-                          <Badge intent="amber">{stats.pendingUsers} pending</Badge>
-                        </div>
-                        <ul className="space-y-3">
-                          {users
-                            .filter((u) => (u.verify_status || u.status) === "pending")
-                            .slice(0, 5)
-                            .map((u) => (
-                              <li key={u.user_id || u.id} className="flex items-center justify-between text-sm">
-                                <span className="truncate">
-                                  {(u.username || u.name) ?? "—"} • {u.email ?? "—"}
-                                </span>
-                                <Button size="sm" intent="success" onClick={() => handleApproveUser(u)}>
-                                  Approve
-                                </Button>
-                              </li>
-                            ))}
-                          {stats.pendingUsers === 0 && <li className="text-sm text-slate-500">Nothing waiting 🎉</li>}
-                        </ul>
-                      </div>
+                <DataTable
+                  columns={postColumns}
+                  rows={posts}
+                  getRowKey={(r) => r.post_id || r.id}
+                  searchKeys={["post_id", "id", "title", "username", "author", "status", "post_status", "price"]}
+                  onApprove={(r) => handleApprovePost(r)}
+                  onReject={(r) => handleRejectPost(r)}
+                  onEdit={(r) =>
+                    setEditPost({
+                      ...r,
+                      status: r.status || r.post_status || "pending",
+                      price: Number(r.price || 0),
+                    })
+                  }
+                  onInactivate={(r) => handleInactivatePost(r)}
+                />
 
-                      <div className="rounded-xl border border-slate-200 p-5">
-                        <div className="mb-3 flex items-center justify-between">
-                          <h4 className="text-sm font-medium text-slate-800">Posts</h4>
-                          <Badge intent="amber">{stats.pendingPosts} pending</Badge>
+                {/* Edit post drawer */}
+                {editPost && (
+                  <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
+                    <div className="drawer h-full w-full max-w-md bg-white p-6 shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-base font-semibold text-slate-900">Edit post</h3>
+                        <Button intent="ghost" onClick={() => setEditPost(null)}>
+                          Close
+                        </Button>
+                      </div>
+                      <div className="mt-4 space-y-4">
+                        <div>
+                          <label className="text-xs text-slate-600">Title</label>
+                          <input
+                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+                            value={editPost.title || ""}
+                            onChange={(e) => setEditPost((s) => ({ ...s, title: e.target.value }))}
+                          />
                         </div>
-                        <ul className="space-y-3">
-                          {posts
-                            .filter((p) => (p.status || p.post_status) === "pending")
-                            .slice(0, 5)
-                            .map((p) => (
-                              <li key={p.post_id || p.id} className="flex items-center justify-between text-sm">
-                                <span className="truncate">
-                                  {p.title ?? "—"} • {p.username || p.author || "—"}
-                                </span>
-                                <Button size="sm" intent="success" onClick={() => handleApprovePost(p)}>
-                                  Approve
-                                </Button>
-                              </li>
-                            ))}
-                          {stats.pendingPosts === 0 && <li className="text-sm text-slate-500">Nothing waiting 🎉</li>}
-                        </ul>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-slate-600">Price (฿)</label>
+                            <input
+                              type="number"
+                              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+                              value={Number(editPost.price || 0)}
+                              onChange={(e) => setEditPost((s) => ({ ...s, price: Number(e.target.value) }))}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-600">Status</label>
+                            <select
+                              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+                              value={editPost.status || "pending"}
+                              onChange={(e) => setEditPost((s) => ({ ...s, status: e.target.value }))}
+                            >
+                              <option value="pending">pending</option>
+                              <option value="active">active</option>
+                              <option value="rejected">rejected</option>
+                              <option value="inactive">inactive</option>
+                              <option value="sold">sold</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs text-slate-500">
+                            post_id: <span className="font-mono">{editPost.post_id || editPost.id}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button intent="warning" onClick={() => handleRejectPost(editPost)}>
+                              Reject
+                            </Button>
+                            <Button intent="success" onClick={() => handleApprovePost(editPost)}>
+                              Approve
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2">
+                          <Button intent="ghost" onClick={() => setEditPost(null)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSavePost}>Save changes</Button>
+                        </div>
                       </div>
                     </div>
                   </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm quick-actions">
-                    <h3 className="text-base font-semibold text-slate-900">Quick Actions</h3>
-                    <div className="mt-4 grid grid-cols-1 gap-3">
-                      <Button onClick={() => setTab("users")}>Review Users</Button>
-                      <Button onClick={() => setTab("posts")}>Review Posts</Button>
-                      <Button intent="outline" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
-                        Back to top
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                )}
               </section>
             )}
 
-            {/* USERS TAB */}
-            {tab === "users" && (
+            {/* USERS TAB (ซ่อนถ้าโหลดไม่สำเร็จ) */}
+            {tab === "users" && !usersFailed && (
               <section className="space-y-5">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-slate-900">Users</h2>
@@ -777,84 +881,6 @@ export default function AdminDashboard() {
                             Cancel
                           </Button>
                           <Button onClick={handleSaveUser}>Save changes</Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </section>
-            )}
-
-            {/* POSTS TAB */}
-            {tab === "posts" && (
-              <section className="space-y-5">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-slate-900">Posts</h2>
-                  <div className="text-xs text-slate-500">
-                    {stats.posts} total • {stats.pendingPosts} pending
-                  </div>
-                </div>
-
-                <DataTable
-                  columns={postColumns}
-                  rows={posts}
-                  getRowKey={(r) => r.post_id || r.id}
-                  searchKeys={["post_id", "id", "title", "username", "author", "status", "post_status"]}
-                  onApprove={(r) => handleApprovePost(r)}
-                  onEdit={(r) =>
-                    setEditPost({
-                      ...r,
-                      status: r.status || r.post_status || "pending",
-                    })
-                  }
-                  onDelete={(r) => handleDeletePost(r)}
-                />
-
-                {/* Edit post drawer */}
-                {editPost && (
-                  <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
-                    <div className="drawer h-full w-full max-w-md bg-white p-6 shadow-xl">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-base font-semibold text-slate-900">Edit post</h3>
-                        <Button intent="ghost" onClick={() => setEditPost(null)}>
-                          Close
-                        </Button>
-                      </div>
-                      <div className="mt-4 space-y-4">
-                        <div>
-                          <label className="text-xs text-slate-600">Title</label>
-                          <input
-                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
-                            value={editPost.title || ""}
-                            onChange={(e) => setEditPost((s) => ({ ...s, title: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-slate-600">Status</label>
-                          <select
-                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
-                            value={editPost.status || "pending"}
-                            onChange={(e) => setEditPost((s) => ({ ...s, status: e.target.value }))}
-                          >
-                            <option value="pending">pending</option>
-                            <option value="published">published</option>
-                            <option value="rejected">rejected</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-xs text-slate-600">Price (฿)</label>
-                          <input
-                            type="number"
-                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
-                            value={Number(editPost.price || 0)}
-                            onChange={(e) => setEditPost((s) => ({ ...s, price: Number(e.target.value) }))}
-                          />
-                        </div>
-                        <div className="flex items-center justify-end gap-2">
-                          <Button intent="ghost" onClick={() => setEditPost(null)}>
-                            Cancel
-                          </Button>
-                          <Button onClick={handleSavePost}>Save changes</Button>
                         </div>
                       </div>
                     </div>

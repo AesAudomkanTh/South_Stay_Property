@@ -324,6 +324,73 @@ input {
     box-shadow: inset 0 0 0 1px #e5e5e5;
 }
 
+
+
+/* ==== เพิ่มเติมธีมดำให้ panel เดิม ==== */
+.sr-root {
+  background: #000;               /* พื้นหลังรวม */
+  color: #fff;
+  min-height: 40vh;
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px 8px;
+}
+.sr-panel {
+  width: 100%;
+  max-width: 1120px;
+  background: #0b0b0d;
+  border: 1px solid #26272b;
+  border-radius: 16px;
+  padding: 20px;
+}
+
+/* ปุ่ม segment */
+.segmented { display: inline-flex; gap: 6px; background:#0f0f12; padding:6px; border-radius:12px; border:1px solid #26272b; }
+.seg { color:#c8c8cc; background:transparent; border:0; padding:6px 14px; border-radius:10px; cursor:pointer; }
+.seg.active { background:#1a1b20; color:#fff; border:1px solid #2c2d33; }
+
+/* แถวฟอร์ม */
+.sr-row, .sr-row-2 { display: grid; gap: 12px; margin: 8px 0; }
+.sr-row-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 640px){ .sr-row-2 { grid-template-columns: 1fr; } }
+
+/* กล่องค้นหา */
+.search { position: relative; display: block; }
+.search .icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color:#9ca3af; }
+.search input {
+  width: 100%;
+  background: #0f0f12;
+  color: #fff;
+  border: 1px solid #26272b;
+  border-radius: 12px;
+  padding: 12px 14px 12px 40px;
+  outline: none;
+}
+
+/* select / unit / price */
+.select label { display:block; font-size:12px; color:#a1a1aa; margin-bottom:6px; }
+.pill-select select,
+.unit-input input,
+.unit-input select,
+.chip-input input {
+  width: 100%;
+  background:#0f0f12;
+  color:#fff;
+  border:1px solid #26272b;
+  border-radius:12px;
+  padding:10px 12px;
+  outline:none;
+}
+.unit-input { display:flex; gap:8px; }
+.chip-input { display:flex; align-items:center; gap:8px; }
+.chip-input .prefix, .chip-input .suffix { font-size:12px; color:#a1a1aa; }
+
+/* ปุ่ม */
+.btn.primary { background:#22c55e; color:#000; border:0; padding:10px 16px; border-radius:10px; font-weight:600; }
+.btn.ghost { background:transparent; color:#e5e7eb; border:1px solid #303036; padding:10px 16px; border-radius:10px; }
+.sr-actions { display:flex; gap:10px; margin-top:12px; }
+
+
 /* 
 :root{
   --s-bg:#ffffff; --s-line:#e2e8f0; --s-soft:#f8fafc; --s-text:#0f172a; --s-muted:#64748b; --s-brand:#111827;

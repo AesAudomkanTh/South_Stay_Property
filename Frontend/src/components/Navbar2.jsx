@@ -5,6 +5,7 @@ import "./Navbar2.css";
 import HamburgerSheet from "./HamburgerSheet";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar2() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -41,6 +42,16 @@ export default function Navbar2() {
     navigate("/post");
   };
 
+  // คลิกกระดิ่ง -> ถ้าไม่ล็อกอินพาไปล็อกอิน, ถ้าล็อกอินแล้วพาไปหน้า /chat
+  const onClickBell = () => {
+    if (!isAuthenticated) {
+      toast("โปรดเข้าสู่ระบบเพื่อดูข้อความ");
+      navigate("/login");
+      return;
+    }
+    navigate("/chat");
+  };
+
   const openSheet = () => {
     console.debug("[Navbar2] open hamburger sheet");
     setIsSheetOpen(true);
@@ -52,7 +63,7 @@ export default function Navbar2() {
 
   return (
     <div className="w-full flex justify-center relative z-[2000] bg-transparent">
-  <header className="sticky top-0 z-[2000] mt-3 w-[96%] max-w-6xl rounded-[2rem] bg-black/95 text-white shadow-lg ring-1 ring-white/10 backdrop-blur supports-[backdrop-filter]:bg-black/80">
+      <header className="sticky top-0 z-[2000] mt-3 w-[96%] max-w-6xl rounded-[2rem] bg-black/95 text-white shadow-lg ring-1 ring-white/10 backdrop-blur supports-[backdrop-filter]:bg-black/80">
         <div className="relative grid grid-cols-[1fr_auto_1fr] items-center px-5 sm:px-7 py-2">
           {/* ซ้าย: โลโก้ */}
           <div className="justify-self-start navbar-logo">
@@ -104,6 +115,15 @@ export default function Navbar2() {
               <PlusIcon className="w-5 h-5" />
               <span className="text-[11px] mt-1">ลงขาย</span>
             </a>
+
+            {/* วางกระดิ่งตรงนี้ ⬇️ */}
+            {/* แสดงเฉพาะตอนล็อกอินแล้ว เพื่อให้ตัวเลข unread ใช้งานได้จริง */}
+            {isAuthenticated && (
+              <div className="hidden sm:flex flex-col items-center text-white/80 hover:text-white">
+                <NotificationBell onClick={onClickBell} />
+                <span className="text-[11px] mt-1">ข้อความ</span>
+              </div>
+            )}
 
             {/* wrapper ต้องเป็น relative เพื่อให้ popover อ้างอิงได้ */}
             <div className="relative">

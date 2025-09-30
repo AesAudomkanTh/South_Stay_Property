@@ -1,4 +1,13 @@
+// src/utils/jwt.js
 import jwt from 'jsonwebtoken';
-export const signAccess = (payload) =>
-  jwt.sign(payload, process.env.JWT_ACCESS_SECRET, { expiresIn: process.env.JWT_ACCESS_EXPIRES || '15m' });
-export const verifyAccess = (token) => jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+
+const ACCESS_SECRET  = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || 'devsecret';
+const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || process.env.JWT_ACCESS_EXPIRES_IN || '7d';
+
+export function signAccess(payload) {
+  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES });
+}
+
+export function verifyAccess(token) {
+  return jwt.verify(token, ACCESS_SECRET);
+}

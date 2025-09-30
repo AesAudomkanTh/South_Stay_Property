@@ -1,9 +1,16 @@
-// src/pages/Search.jsx
+// src/pages/SearchPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import PropertyCard from "../components/PropertyCard";
 import "./search.css";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5050";
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+const toStr = (v) => (typeof v === "string" ? v : v == null ? "" : String(v));
+const toNum = (v, d = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : d;
+};
 
 export default function SearchPage() {
   // ====== ฟอร์ม ======
@@ -18,11 +25,13 @@ export default function SearchPage() {
   const params = useMemo(
     () => ({
       mode,
-      q: query?.trim() || undefined,
-      propertyType: propertyType || undefined,
-      province: province?.trim() || undefined,
-      unit: unitSize ? { size: Number(unitSize), type: unitType } : undefined,
-      maxPrice: maxPrice ? Number(String(maxPrice).replace(/[, ]/g, "")) : undefined,
+      q: toStr(query).trim() || undefined,
+      propertyType: toStr(propertyType) || undefined,
+      province: toStr(province).trim() || undefined,
+      unit: unitSize ? { size: toNum(unitSize), type: unitType } : undefined,
+      maxPrice: toStr(maxPrice)
+        ? Number(toStr(maxPrice).replace(/[, ]/g, ""))
+        : undefined,
     }),
     [mode, query, propertyType, province, unitSize, unitType, maxPrice]
   );
@@ -42,7 +51,7 @@ export default function SearchPage() {
     setMaxPrice("");
   };
 
-  // ====== ดึงข้อมูล ======
+  // ====== ดึงข้อมูลจาก Backend ======
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -57,44 +66,36 @@ export default function SearchPage() {
     };
   }, []);
 
-  // แม็พข้อมูล backend → โครงการ์ด (กันทุกเคส)
   function mapPosterToCardItem(p) {
     const status = p?.status || p?.post_status;
     const isActive =
       status === "active" || status === "published" || status === "approve";
-
     const postType =
-      p?.post_type ||
-      (p?.mode ? (p.mode === "rent" ? "rent" : "sale") : "rent");
+      p?.post_type || (p?.mode ? (p.mode === "rent" ? "rent" : "sale") : "rent");
 
-    // รูปภาพ: รองรับทั้ง array ของ object {image_url} หรือ string
-    let imgs = [];
-    if (Array.isArray(p?.images) && p.images.length) {
-      imgs = p.images
-        .map((im) => (typeof im === "string" ? im : im?.image_url))
-        .filter(Boolean);
-    } else if (Array.isArray(p?.photos) && p.photos.length) {
-      imgs = p.photos
-        .map((im) => (typeof im === "string" ? im : im?.image_url))
-        .filter(Boolean);
-    } else if (p?.image_url) {
-      imgs = [p.image_url];
-    }
+    const images =
+      Array.isArray(p?.images) && p.images.length
+        ? p.images
+        : Array.isArray(p?.photos) && p.photos.length
+        ? p.photos
+        : p?.image_url
+        ? [p.image_url]
+        : [];
 
     return {
       id: p?.post_id || p?.id,
-      title: p?.title || "-",
-      images: imgs,
-      photoCount: imgs.length,
-      price: Number(p?.price || 0),
+      title: toStr(p?.title || "-"),
+      images,
+      photoCount: images.length,
+      price: toNum(p?.price, 0),
       priceSuffix: postType === "rent" ? "/เดือน" : "",
-      beds: p?.bed_room ?? 0,
-      baths: p?.bath_room ?? 0,
-      area: p?.area ?? p?.land_area ?? 0,
-      areaUnit: p?.areaUnit || (p?.property_type === "land" ? "ไร่" : "ตร.ม."),
-      type: p?.property_type || p?.type || "other",
-      province: p?.province || p?.location_province || "",
-      location: p?.location || p?.district || p?.amphoe || "",
+      beds: toNum(p?.bed_room, 0),
+      baths: toNum(p?.bath_room, 0),
+      area: toNum(p?.area ?? p?.land_area, 0),
+      areaUnit: toStr(p?.areaUnit || (p?.property_type === "land" ? "ไร่" : "ตร.ม.")),
+      type: toStr(p?.property_type || p?.type || "other"),
+      province: toStr(p?.province || p?.location_province),
+      location: toStr(p?.location || p?.district || p?.amphoe),
       recommended: false,
       mode: postType === "rent" ? "rent" : "sale",
       _statusActive: isActive,
@@ -102,7 +103,6 @@ export default function SearchPage() {
   }
 
   async function fetchActivePosts() {
-    // ยกเลิกคำขอเก่า
     if (controllerRef.current) controllerRef.current.abort();
     const ctl = new AbortController();
     controllerRef.current = ctl;
@@ -110,34 +110,42 @@ export default function SearchPage() {
     try {
       setLoading(true);
 
-      // ลองดึงเฉพาะ active ก่อน (ถ้าแบ็กเอนด์ไม่รองรับ ค่อย fallback)
-      const res = await fetch(`${BASE_URL}/api/posters?status=active`, {
-        signal: ctl.signal,
-      });
+      const url = `${BASE_URL}/api/posters?status=active`;
+      const res = await fetch(url, { signal: ctl.signal });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
 
       const data = text ? JSON.parse(text) : [];
-      const list = Array.isArray(data) ? data : data.items || data.posts || data.data || [];
+      const list = Array.isArray(data)
+        ? data
+        : data.items || data.posts || data.data || [];
 
-      const mapped = list.map(mapPosterToCardItem).filter((x) => x._statusActive && x.id);
+      const mapped = list
+        .map(mapPosterToCardItem)
+        .filter((x) => x._statusActive && x.id);
 
       if (mountedRef.current && !ctl.signal.aborted) {
         setItems(mapped);
       }
     } catch (e) {
       if (e?.name !== "AbortError") {
-        // fallback: ดึงทั้งหมดแล้วคัดกรองในฝั่ง FE
+        console.error("[SearchPage] fetchActivePosts error:", e);
         try {
           const ctl2 = new AbortController();
           controllerRef.current = ctl2;
+
           const res2 = await fetch(`${BASE_URL}/api/posters`, { signal: ctl2.signal });
           const text2 = await res2.text();
           if (!res2.ok) throw new Error(text2 || `HTTP ${res2.status}`);
 
           const data2 = text2 ? JSON.parse(text2) : [];
-          const list2 = Array.isArray(data2) ? data2 : data2.items || data2.data || [];
-          const mapped2 = list2.map(mapPosterToCardItem).filter((x) => x._statusActive && x.id);
+          const list2 = Array.isArray(data2)
+            ? data2
+            : data2.items || data2.posts || data2.data || [];
+
+          const mapped2 = list2
+            .map(mapPosterToCardItem)
+            .filter((x) => x._statusActive && x.id);
 
           if (mountedRef.current && !ctl2.signal.aborted) setItems(mapped2);
         } catch (e2) {
@@ -152,37 +160,54 @@ export default function SearchPage() {
     }
   }
 
-  // โหลดครั้งแรก + รีเฟรชทุก 20s
   useEffect(() => {
     fetchActivePosts();
     timerRef.current = setInterval(fetchActivePosts, 20000);
-
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (controllerRef.current) controllerRef.current.abort();
     };
   }, []);
 
-  // ====== กรองตามค่าฟอร์ม (เขียนแบบกัน undefined) ======
+  // ====== กรองตามค่าฟอร์ม (กัน undefined ทุกจุด) ======
   const filtered = useMemo(() => {
+    const q = toStr(params.q).toLowerCase();
+    const maxP = params.maxPrice;
+
     return items.filter((p) => {
-      if (p.mode !== mode) return false;
-      if (propertyType && p.type !== propertyType) return false;
-      if (province && !(`${p.province || ""}`.includes(province))) return false;
-      if (params.maxPrice && Number(p.price || 0) > params.maxPrice) return false;
-      if (params.q) {
-        const q = `${params.q}`.toLowerCase();
-        const hay = `${p.title || ""} ${p.location || ""} ${p.province || ""} ${p.type || ""}`.toLowerCase();
+      if (toStr(p.mode) !== toStr(mode)) return false;
+      if (toStr(propertyType) && toStr(p.type) !== toStr(propertyType)) return false;
+
+      const prov = toStr(p.province);
+      if (toStr(province) && !prov.includes(toStr(province))) return false;
+
+      if (typeof maxP === "number" && Number.isFinite(maxP) && p.price > maxP) return false;
+
+      if (q) {
+        const hay = `${toStr(p.title)} ${toStr(p.location)} ${toStr(p.province)} ${toStr(
+          p.type
+        )}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      if (params.unit?.size && Number(p.area || 0) < params.unit.size) return false;
+
+      if (params.unit?.size && toNum(p.area, 0) < Number(params.unit.size)) return false;
+
       return true;
     });
   }, [items, mode, propertyType, province, params]);
 
+  // ====== ถูกใจ (ถ้ายังไม่ได้ย้ายไป FavoritesContext) ======
+  const [likes, setLikes] = useState(() => new Set());
+  const toggleLike = (id) =>
+    setLikes((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
   return (
     <div className="bg-black text-white min-h-screen">
-      {/* ====== ฟอร์มค้นหา ====== */}
+      {/* ฟอร์มค้นหา */}
       <div className="sr-root">
         <form className="sr-panel" onSubmit={onSubmit}>
           <div className="segmented" role="tablist" aria-label="โหมดประกาศ">
@@ -227,7 +252,11 @@ export default function SearchPage() {
             <div className="select">
               <label>ประเภท</label>
               <div className="pill-select">
-                <select value={propertyType} onChange={(e) => setPropertyType(e.target.value)} aria-label="เลือกประเภท">
+                <select
+                  value={propertyType}
+                  onChange={(e) => setPropertyType(e.target.value)}
+                  aria-label="เลือกประเภท"
+                >
                   <option value="">ทั้งหมด</option>
                   <option value="house">บ้าน</option>
                   <option value="condo">คอนโด</option>
@@ -240,7 +269,11 @@ export default function SearchPage() {
             <div className="select">
               <label>จังหวัด</label>
               <div className="pill-select">
-                <select value={province} onChange={(e) => setProvince(e.target.value)} aria-label="เลือกจังหวัด">
+                <select
+                  value={province}
+                  onChange={(e) => setProvince(e.target.value)}
+                  aria-label="เลือกจังหวัด"
+                >
                   <option value="">ทั้งหมด</option>
                   <option value="กรุงเทพฯ">กรุงเทพฯ</option>
                   <option value="นนทบุรี">นนทบุรี</option>
@@ -263,7 +296,11 @@ export default function SearchPage() {
                   placeholder="เช่น 50"
                   aria-label="ขนาด"
                 />
-                <select value={unitType} onChange={(e) => setUnitType(e.target.value)} aria-label="หน่วย">
+                <select
+                  value={unitType}
+                  onChange={(e) => setUnitType(e.target.value)}
+                  aria-label="หน่วย"
+                >
                   <option value="sqm">ตร.ม.</option>
                   <option value="sqw">ตร.ว.</option>
                   <option value="rai">ไร่</option>
@@ -288,9 +325,18 @@ export default function SearchPage() {
           </div>
 
           <div className="sr-actions">
-            <button className="btn primary" type="submit">ค้นหา</button>
-            <button type="button" className="btn ghost" onClick={reset}>ล้างตัวกรอง</button>
-            <button type="button" className="btn outline" onClick={fetchActivePosts} title="รีเฟรชรายการล่าสุด">
+            <button className="btn primary" type="submit">
+              ค้นหา
+            </button>
+            <button type="button" className="btn ghost" onClick={reset}>
+              ล้างตัวกรอง
+            </button>
+            <button
+              type="button"
+              className="btn outline"
+              onClick={fetchActivePosts}
+              title="รีเฟรชรายการล่าสุด"
+            >
               รีเฟรช
             </button>
           </div>
@@ -298,7 +344,10 @@ export default function SearchPage() {
       </div>
 
       {/* ====== ผลลัพธ์ ====== */}
-      <section id="results" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16">
+      <section
+        id="results"
+        className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16"
+      >
         <div className="flex items-center justify-between mt-6 mb-4">
           <h2 className="text-lg font-semibold">
             {mode === "rent" ? "คอนโด/บ้านให้เช่า" : "คอนโด/บ้านประกาศขาย"}
@@ -310,7 +359,14 @@ export default function SearchPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {!loading &&
-            filtered.map((p) => <PropertyCard key={p.id} item={p} />)}
+            filtered.map((p) => (
+              <PropertyCard
+                key={p.id}
+                item={p}
+                liked={false /* ถ้ายังไม่เชื่อม FavoritesContext */}
+                onToggleLike={() => {}}
+              />
+            ))}
           {loading && <div className="text-zinc-400">กำลังโหลดประกาศ…</div>}
           {!loading && filtered.length === 0 && (
             <div className="text-zinc-400">ไม่พบประกาศที่ตรงกับเงื่อนไข</div>

@@ -1,123 +1,299 @@
-// src/services/poster.service.js
-import { pool } from '../db.js';
 import crypto from 'crypto';
+import { pool } from '../db.js';
 
-// สร้าง id สั้น ๆ แบบ base64url (หรือจะใช้ uuid ก็ได้)
-function genId(prefix) {
-  const id = crypto.randomBytes(9).toString('base64url'); // ~12 chars
-  return `${prefix}_${id}`;
+/** gen id สั้น */
+function genId(prefix = 'post') {
+  return `${prefix}_${crypto.randomBytes(6).toString('base64url')}`;
 }
 
-/**
- * user: มาจาก req.user ที่ decode จาก JWT
- * body: ผ่าน validate แล้วตาม CreatePosterSchema
- *
- * ตาราง posters (ตาม schema ที่คุณให้):
- * post_id (PK), user_id, remark, title, description, post_type, property_type,
- * price, status, boost_date, land_area, feasibility, latitude, longitude,
- * bed_room, bath_room, kitchen_room, expire_date, viewer, landmark_id,
- * created_at, updated_at, deleted_at
- *
- * ตาราง post_image:
- * image_id (PK), post_id (FK), name, image_url, created_at, deleted_at
- */
-export async function createPosterAtomic(user, body) {
+/** สร้างโพสต์ + รูปภาพ (ทรานแซกชัน) */
+export async function createPosterAtomic(payload, user_id) {
+  const post_id = genId('post');
+
+  const {
+    title, description, post_type, property_type, price,
+    bed_room, bath_room, kitchen_room,
+    latitude, longitude,
+    project, address, province, floor, parking, land_area, feasibility,
+    images = [],
+  } = payload;
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
-    const post_id = genId('post');
+    // ✅ ใส่ค่า location = ST_SRID(POINT(lon, lat), 4326)
+    await conn.execute(
+      `INSERT INTO posters (
+        post_id, user_id, title, description,
+        post_type, property_type, price,
+        latitude, longitude, location,
+        bed_room, bath_room, kitchen_room,
+        project, address, province, floor, parking, land_area, feasibility,
+        status, created_at, updated_at
+      ) VALUES (
+        ?, ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ST_SRID(POINT(?, ?), 4326),
+        ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?,
+        'pending', NOW(), NOW()
+      )`,
+      [
+        post_id, user_id, title, description,
+        post_type, property_type, price,
+        latitude, longitude, longitude, latitude,          // <- ค่าใน POINT(X=lon, Y=lat)
+        bed_room ?? 0, bath_room ?? 0, kitchen_room ?? 0,
+        project || null, address || null, province || null,
+        floor ?? null, parking ?? null, land_area ?? null, feasibility || null,
+      ],
+    );
 
-    // แม็พเฉพาะคอลัมน์ที่ "มีจริง" ในตาราง
-    // remark, feasibility, land_area, boost_date, expire_date, landmark_id — ให้เป็น null ถ้าไม่ได้ส่ง
-    // status กำหนด 'active' เป็นค่าเริ่มต้น (ตารางของคุณอนุญาต)
-    const {
-      title,
-      description = '',
-      post_type,          // 'sale' | 'rent'
-      property_type,      // 'house' | 'condo' | 'land' | 'other'
-      price,              // number
-      bed_room,           // number
-      bath_room,          // number
-      kitchen_room = 0,   // number (optional)
-      latitude,           // number
-      longitude,          // number
-      // ถ้า front ส่ง images มือเปล่า ให้ตั้งเป็น []
-      images = [],
-    } = body;
+    // insert images
+    const imgSql = `INSERT INTO post_image
+      (image_id, post_id, name, image_url, secure_url, is_primary, sort_order, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`;
 
-    // INSERT posters
-    const insertPosterSql = `
-      INSERT INTO posters
-      (post_id, user_id, remark, title, description, post_type, property_type, price,
-       status, boost_date, land_area, feasibility, latitude, longitude,
-       bed_room, bath_room, kitchen_room, expire_date, viewer, landmark_id)
-      VALUES
-      (?,       ?,       ?,      ?,     ?,           ?,         ?,             ?,
-       ?,      ?,         ?,        ?,           ?,         ?,
-       ?,        ?,          ?,            ?,          ?,       ?)
-    `;
+    for (const [i, img] of images.entries()) {
+      const image_id = genId('img');
+      const name = img.name || `image_${i + 1}`;
+      const url = img.image_url;
+      const is_primary = img.is_primary ? 1 : (i === 0 ? 1 : 0);
+      const sort_order = Number.isInteger(img.sort_order) ? img.sort_order : i;
 
-    const insertPosterParams = [
-      post_id,
-      user?.user_id || null,  // ถ้า token ไม่มี user_id จะเป็น NULL (FK set null allowed)
-      null,                   // remark
-      title,
-      description || '',
-      post_type,
-      property_type,
-      price,
-      'active',               // status default
-      null,                   // boost_date
-      null,                   // land_area
-      null,                   // feasibility
-      latitude,
-      longitude,
-      bed_room,
-      bath_room,
-      kitchen_room ?? 0,
-      null,                   // expire_date
-      0,                      // viewer default 0
-      null,                   // landmark_id
+      await conn.execute(imgSql, [
+        image_id, post_id, name, url, url, is_primary, sort_order,
+      ]);
+    }
+
+    await conn.commit();
+    return { ok: true, post_id };
+  } catch (err) {
+    // เผื่อ MySQL รุ่นเก่าที่ไม่มี ST_SRID ให้ fallback ใส่ POINT เฉยๆ
+    if (String(err?.sqlMessage || '').includes('FUNCTION') && String(err?.sqlMessage || '').includes('ST_SRID')) {
+      try {
+        await conn.rollback();
+        await conn.beginTransaction();
+        await conn.execute(
+          `INSERT INTO posters (
+            post_id, user_id, title, description,
+            post_type, property_type, price,
+            latitude, longitude, location,
+            bed_room, bath_room, kitchen_room,
+            project, address, province, floor, parking, land_area, feasibility,
+            status, created_at, updated_at
+          ) VALUES (
+            ?, ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, POINT(?, ?),
+            ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?,
+            'pending', NOW(), NOW()
+          )`,
+          [
+            post_id, user_id, title, description,
+            post_type, property_type, price,
+            latitude, longitude, longitude, latitude,
+            bed_room ?? 0, bath_room ?? 0, kitchen_room ?? 0,
+            project || null, address || null, province || null,
+            floor ?? null, parking ?? null, land_area ?? null, feasibility || null,
+          ],
+        );
+
+        const imgSql = `INSERT INTO post_image
+          (image_id, post_id, name, image_url, secure_url, is_primary, sort_order, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`;
+        for (const [i, img] of images.entries()) {
+          const image_id = genId('img');
+          const name = img.name || `image_${i + 1}`;
+          const url = img.image_url;
+          const is_primary = img.is_primary ? 1 : (i === 0 ? 1 : 0);
+          const sort_order = Number.isInteger(img.sort_order) ? img.sort_order : i;
+
+          await conn.execute(imgSql, [
+            image_id, post_id, name, url, url, is_primary, sort_order,
+          ]);
+        }
+
+        await conn.commit();
+        return { ok: true, post_id };
+      } catch (e2) {
+        await conn.rollback();
+        throw e2;
+      } finally {
+        conn.release();
+      }
+    }
+
+    await conn.rollback();
+    throw err;
+  } finally {
+    try { conn.release(); } catch {}
+  }
+}
+
+/** แก้ไขประกาศของเจ้าของเอง (แทนที่รูปทั้งหมดถ้าส่ง images มา) */
+export async function updatePosterByOwnerAtomic(post_id, user_id, patch, newImages /* normalized */) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // เอาค่า lat/lng ปัจจุบันมาด้วย เพื่อคำนวณ location ที่ถูกต้อง
+    const [[own]] = await conn.execute(
+      `SELECT post_id, latitude AS cur_lat, longitude AS cur_lng
+         FROM posters
+        WHERE post_id=? AND user_id=? AND deleted_at IS NULL
+        LIMIT 1`,
+      [post_id, user_id],
+    );
+    if (!own) {
+      await conn.rollback();
+      return { ok: false, error: 'Forbidden' };
+    }
+
+    // เตรียม fields
+    const fields = [];
+    const vals = [];
+
+    const allow = [
+      'title', 'description', 'post_type', 'property_type', 'price',
+      'bed_room', 'bath_room', 'kitchen_room',
+      'latitude', 'longitude',
+      'project', 'address', 'province', 'floor', 'parking', 'land_area', 'feasibility',
     ];
+    for (const k of allow) {
+      if (k in patch) {
+        fields.push(`${k}=?`);
+        vals.push(patch[k]);
+      }
+    }
 
-    await conn.execute(insertPosterSql, insertPosterParams);
+    // ถ้าแก้ lat/lng อย่างน้อยหนึ่งตัว → อัปเดต location ให้สัมพันธ์กันเสมอ
+    const latChanged = Object.prototype.hasOwnProperty.call(patch, 'latitude');
+    const lngChanged = Object.prototype.hasOwnProperty.call(patch, 'longitude');
+    if (latChanged || lngChanged) {
+      const newLat = latChanged ? patch.latitude : own.cur_lat;
+      const newLng = lngChanged ? patch.longitude : own.cur_lng;
+      fields.push(`location = ST_SRID(POINT(?, ?), 4326)`);
+      vals.push(newLng, newLat);
+    }
 
-    // INSERT post_image ถ้ามี
-    if (Array.isArray(images) && images.length > 0) {
-      const insertImgSql = `
-        INSERT INTO post_image (image_id, post_id, name, image_url)
-        VALUES (?, ?, ?, ?)
-      `;
-      for (const img of images) {
+    if (fields.length) {
+      // กลับเป็น pending ให้รีวิวใหม่
+      await conn.execute(
+        `UPDATE posters SET ${fields.join(', ')}, status='pending', updated_at=NOW() WHERE post_id=?`,
+        [...vals, post_id],
+      );
+    }
+
+    // ถ้ามีภาพใหม่ → soft-delete ภาพเดิม แล้ว insert ใหม่
+    if (Array.isArray(newImages) && newImages.length) {
+      await conn.execute(
+        `UPDATE post_image SET deleted_at = NOW() WHERE post_id=? AND deleted_at IS NULL`,
+        [post_id],
+      );
+
+      const imgSql = `INSERT INTO post_image
+        (image_id, post_id, name, image_url, secure_url, is_primary, sort_order, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`;
+
+      for (const [i, img] of newImages.entries()) {
         const image_id = genId('img');
-        const name = img?.name || 'image';
-        const url  = img?.image_url || '';
-        if (!url) continue; // ถ้าไม่มี url ข้าม
+        const name = img.name || `image_${i + 1}`;
+        const url = img.image_url;
+        const is_primary = img.is_primary ? 1 : (i === 0 ? 1 : 0);
+        const sort_order = Number.isInteger(img.sort_order) ? img.sort_order : i;
 
-        await conn.execute(insertImgSql, [image_id, post_id, name, url]);
+        await conn.execute(imgSql, [
+          image_id, post_id, name, url, url, is_primary, sort_order,
+        ]);
       }
     }
 
     await conn.commit();
-
-    return {
-      ok: true,
-      post_id,
-    };
+    return { ok: true, post_id };
   } catch (err) {
+    // fallback ให้ POINT() ถ้าไม่มี ST_SRID (กรณี MySQL เก่ามาก)
+    if (String(err?.sqlMessage || '').includes('FUNCTION') && String(err?.sqlMessage || '').includes('ST_SRID')) {
+      try {
+        await conn.rollback();
+        await conn.beginTransaction();
+
+        const [[own]] = await conn.execute(
+          `SELECT post_id, latitude AS cur_lat, longitude AS cur_lng
+             FROM posters
+            WHERE post_id=? AND user_id=? AND deleted_at IS NULL
+            LIMIT 1`,
+          [post_id, user_id],
+        );
+        if (!own) {
+          await conn.rollback();
+          return { ok: false, error: 'Forbidden' };
+        }
+
+        const fields = [];
+        const vals = [];
+        const allow = [
+          'title', 'description', 'post_type', 'property_type', 'price',
+          'bed_room', 'bath_room', 'kitchen_room',
+          'latitude', 'longitude',
+          'project', 'address', 'province', 'floor', 'parking', 'land_area', 'feasibility',
+        ];
+        for (const k of allow) {
+          if (k in patch) {
+            fields.push(`${k}=?`);
+            vals.push(patch[k]);
+          }
+        }
+        const latChanged = Object.prototype.hasOwnProperty.call(patch, 'latitude');
+        const lngChanged = Object.prototype.hasOwnProperty.call(patch, 'longitude');
+        if (latChanged || lngChanged) {
+          const newLat = latChanged ? patch.latitude : own.cur_lat;
+          const newLng = lngChanged ? patch.longitude : own.cur_lng;
+          fields.push(`location = POINT(?, ?)`);
+          vals.push(newLng, newLat);
+        }
+        if (fields.length) {
+          await conn.execute(
+            `UPDATE posters SET ${fields.join(', ')}, status='pending', updated_at=NOW() WHERE post_id=?`,
+            [...vals, post_id],
+          );
+        }
+
+        if (Array.isArray(newImages) && newImages.length) {
+          await conn.execute(
+            `UPDATE post_image SET deleted_at = NOW() WHERE post_id=? AND deleted_at IS NULL`,
+            [post_id],
+          );
+          const imgSql = `INSERT INTO post_image
+            (image_id, post_id, name, image_url, secure_url, is_primary, sort_order, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`;
+          for (const [i, img] of newImages.entries()) {
+            const image_id = genId('img');
+            const name = img.name || `image_${i + 1}`;
+            const url = img.image_url;
+            const is_primary = img.is_primary ? 1 : (i === 0 ? 1 : 0);
+            const sort_order = Number.isInteger(img.sort_order) ? img.sort_order : i;
+
+            await conn.execute(imgSql, [
+              image_id, post_id, name, url, url, is_primary, sort_order,
+            ]);
+          }
+        }
+
+        await conn.commit();
+        return { ok: true, post_id };
+      } catch (e2) {
+        await conn.rollback();
+        throw e2;
+      } finally {
+        conn.release();
+      }
+    }
+
     await conn.rollback();
     throw err;
   } finally {
-    conn.release();
+    try { conn.release(); } catch {}
   }
-}
-
-export async function adminApprovePost(post_id, approve = true) {
-  const status = approve ? 'active' : 'inactive';
-  await pool.execute(
-    'UPDATE posters SET status=?, updated_at=NOW() WHERE post_id=?',
-    [status, post_id]
-  );
-  return { ok: true };
 }

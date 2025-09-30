@@ -1,290 +1,264 @@
-/*import { Router } from 'express';
-import { pool } from '../db.js';
-import { requireAuth } from '../middlewares/auth.js';
-import { requireScope } from '../middlewares/rbac.js';
-
-const r = Router();
-
-// ต้องเป็น admin level >=2
-const needAdmin = [requireAuth, requireScope('admin', 2)];
-
-// ===== USERS =====
-r.get('/users', needAdmin, async (req, res) => {
-  const [rows] = await pool.execute(
-    `SELECT
-       u.user_id, u.username, u.email, u.verify_status,
-       GROUP_CONCAT(s.scope_name ORDER BY s.scope_name) AS scopes,
-       MAX(us.level) AS max_level,
-       u.created_at
-     FROM users u
-     LEFT JOIN user_scopes us ON us.user_id=u.user_id AND us.deleted_at IS NULL
-     LEFT JOIN scopes s ON s.scope_id=us.scope_id
-     WHERE u.deleted_at IS NULL
-     GROUP BY u.user_id
-     ORDER BY u.created_at DESC`
-  );
-  res.json(rows.map(r => ({
-    id: r.user_id,
-    name: r.username,
-    email: r.email,
-    role: (r.scopes || '').includes('admin') ? 'admin' : 'member',
-    status: r.verify_status === 'verified' ? 'active' :
-            r.verify_status === 'pending'  ? 'pending' : r.verify_status || 'pending',
-    createdAt: r.created_at,
-  })));
-});
-
-// verify / unverify user
-r.patch('/users/:user_id/verify', needAdmin, async (req, res) => {
-  const status = req.body?.status === 'verified' ? 'verified' : 'pending';
-  await pool.execute(
-    `UPDATE users SET verify_status=?, updated_at=NOW() WHERE user_id=?`,
-    [status, req.params.user_id]
-  );
-  res.json({ ok: true, status });
-});
-
-// ปรับ role อย่างง่าย: member|admin
-r.patch('/users/:user_id', needAdmin, async (req, res) => {
-  const role = req.body?.role === 'admin' ? 'admin' : 'member';
-
-  // หา scope admin
-  const [[adm]] = await pool.execute(
-    `SELECT scope_id FROM scopes WHERE scope_name='admin' LIMIT 1`
-  );
-  if (!adm) return res.status(500).json({ error: 'admin scope not found' });
-
-  if (role === 'admin') {
-    // upsert admin scope level 3
-    await pool.execute(
-      `INSERT INTO user_scopes (user_sc_id, user_id, scope_id, level, created_at, updated_at)
-       VALUES (REPLACE(UUID(),'-',''), ?, ?, 3, NOW(), NOW())
-       ON DUPLICATE KEY UPDATE level=VALUES(level), updated_at=NOW(), deleted_at=NULL`,
-      [req.params.user_id, adm.scope_id]
-    );
-  } else {
-    // unassign: set deleted_at
-    await pool.execute(
-      `UPDATE user_scopes SET deleted_at=NOW()
-       WHERE user_id=? AND scope_id=? AND deleted_at IS NULL`,
-      [req.params.user_id, adm.scope_id]
-    );
-  }
-  res.json({ ok: true, role });
-});
-
-// (ออปชัน) ลบผู้ใช้แบบ soft-delete
-r.delete('/users/:user_id', needAdmin, async (req, res) => {
-  await pool.execute(
-    `UPDATE users SET deleted_at=NOW() WHERE user_id=?`,
-    [req.params.user_id]
-  );
-  res.json({ ok: true });
-});
-
-// ===== POSTS =====
-r.get('/posts', needAdmin, async (req, res) => {
-  // แอดมินต้องเห็นทุกสถานะ
-  const [rows] = await pool.execute(
-    `SELECT p.post_id, p.title, p.status, p.price, p.created_at, u.username AS author
-     FROM posters p
-     LEFT JOIN users u ON u.user_id=p.user_id
-     WHERE p.deleted_at IS NULL
-     ORDER BY p.created_at DESC`
-  );
-  res.json(rows.map(r => ({
-    id: r.post_id,
-    title: r.title,
-    author: r.author || '-',
-    status: r.status,                 // 'pending'|'published'|'rejected'
-    price: Number(r.price || 0),
-    createdAt: r.created_at
-  })));
-});
-
-// อนุมัติโพสต์
-r.patch('/posts/:post_id/approve', needAdmin, async (req, res) => {
-  const approve = req.body?.approve !== false; // default true
-  await pool.execute(
-    `UPDATE posters
-     SET status=?, updated_at=NOW()
-     WHERE post_id=?`,
-    [approve ? 'active' : 'rejected', req.params.post_id]
-  );
-  res.json({ ok: true, status: approve ? 'active' : 'rejected' });
-});
-
-// ลบโพสต์แบบ soft-delete
-r.delete('/posts/:post_id', needAdmin, async (req, res) => {
-  await pool.execute(
-    `UPDATE posters SET deleted_at=NOW() WHERE post_id=?`,
-    [req.params.post_id]
-  );
-  res.json({ ok: true });
-});
-
-export default r;*/
-
 // src/routes/admin.routes.js
-import { Router } from 'express';
-import { pool } from '../db.js';
-import { requireAuth } from '../middlewares/auth.js';
-import { requireScope } from '../middlewares/rbac.js';
+import { Router } from "express";
+import { pool } from "../db.js";
+import { requireAuth } from "../middlewares/auth.js";
+import { requireScope } from "../middlewares/rbac.js";
 
 const r = Router();
 
-// ต้องเป็น admin level >=2
-const needAdmin = [requireAuth, requireScope('admin', 2)];
+// ต้องเป็น admin เท่านั้น
+r.use(requireAuth, requireScope("admin", 1));
 
-// ===== USERS =====
-r.get('/users', needAdmin, async (req, res) => {
+/* ---------------------------- helpers ---------------------------- */
+
+function normalizeUserVerifyStatus(s) {
+  // FE บางที่ส่ง active/rejected มา แต่ตาราง users มี enum: verified|pending|unverified
+  if (!s) return null;
+  const x = String(s).toLowerCase();
+  if (x === "active" || x === "verified") return "verified";
+  if (x === "rejected" || x === "unverify" || x === "unverified") return "unverified";
+  if (x === "pending") return "pending";
+  // ค่าที่ไม่รู้จัก -> ไม่อัปเดต
+  return null;
+}
+
+function normalizePostStatus(s) {
+  if (!s) return null;
+  const x = String(s).toLowerCase();
+  if (x === "published") return "active"; // FE อาจส่ง published
+  const allow = ["pending", "active", "rejected", "inactive", "sold"];
+  return allow.includes(x) ? x : null;
+}
+
+/* =============================== USERS =============================== */
+
+// GET /api/admin/users
+// (ไม่มีคอลัมน์ role ในตารางจริง ๆ จึง alias เป็น 'member' ให้ FE ใช้ได้)
+r.get("/users", async (_req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT user_id,
+              username,
+              email,
+              verify_status,
+              created_at,
+              'member' AS role
+         FROM users
+        WHERE deleted_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 200`
+    );
+    return res.json(
+      rows.map((u) => ({
+        ...u,
+        verify_status: u.verify_status ?? "pending",
+      }))
+    );
+  } catch (e) {
+    console.error("💥 [/api/admin/users] error:", e);
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", code: e.code, sqlMessage: e.sqlMessage });
+  }
+});
+
+// PATCH /api/admin/users/:id/verify
+r.patch("/users/:id/verify", async (req, res) => {
+  const id = req.params.id;
+  const status = normalizeUserVerifyStatus(req.body?.status || "verified");
+  if (!status) return res.status(400).json({ error: "Bad status value" });
+
+  try {
+    await pool.execute(
+      `UPDATE users
+          SET verify_status = ?, updated_at = NOW()
+        WHERE user_id = ? AND deleted_at IS NULL`,
+      [status, id]
+    );
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("💥 [/api/admin/users/:id/verify] error:", e);
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", code: e.code, sqlMessage: e.sqlMessage });
+  }
+});
+
+// PATCH /api/admin/users/:id
+r.patch("/users/:id", async (req, res) => {
+  const id = req.params.id;
+  const { name, email, verify_status, status } = req.body || {};
+  const newStatus = normalizeUserVerifyStatus(verify_status ?? status);
+
+  try {
+    // อัปเดต field พื้นฐาน (ตารางจริงใช้ username แทน name และไม่มี role)
+    await pool.execute(
+      `UPDATE users
+          SET username = COALESCE(?, username),
+              email    = COALESCE(?, email),
+              updated_at = NOW()
+        WHERE user_id = ? AND deleted_at IS NULL`,
+      [name ?? null, email ?? null, id]
+    );
+
+    if (newStatus) {
+      await pool.execute(
+        `UPDATE users
+            SET verify_status = ?, updated_at = NOW()
+          WHERE user_id = ? AND deleted_at IS NULL`,
+        [newStatus, id]
+      );
+    }
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("💥 [/api/admin/users/:id] error:", e);
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", code: e.code, sqlMessage: e.sqlMessage });
+  }
+});
+
+// DELETE /api/admin/users/:id (soft delete)
+r.delete("/users/:id", async (req, res) => {
+  const id = req.params.id;
+  try {
+    await pool.execute(
+      `UPDATE users
+          SET deleted_at = NOW(), updated_at = NOW()
+        WHERE user_id = ? AND deleted_at IS NULL`,
+      [id]
+    );
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("💥 [/api/admin/users/:id] delete error:", e);
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", code: e.code, sqlMessage: e.sqlMessage });
+  }
+});
+
+/* =============================== POSTS =============================== */
+
+// helper: ดึงโพสต์ตามสถานะ
+async function selectPosts(status) {
   const [rows] = await pool.execute(
     `SELECT
-       u.user_id, u.username, u.email, u.verify_status,
-       GROUP_CONCAT(s.scope_name ORDER BY s.scope_name) AS scopes,
-       MAX(us.level) AS max_level,
-       u.created_at
-     FROM users u
-     LEFT JOIN user_scopes us 
-       ON us.user_id=u.user_id AND us.deleted_at IS NULL
-     LEFT JOIN scopes s 
-       ON s.scope_id=us.scope_id
-     WHERE u.deleted_at IS NULL
-     GROUP BY u.user_id
-     ORDER BY u.created_at DESC`
+        p.post_id,
+        p.title,
+        p.price,
+        p.status,
+        p.created_at,
+        u.username
+      FROM posters p
+      LEFT JOIN users u ON u.user_id = p.user_id
+     WHERE p.deleted_at IS NULL AND p.status = ?
+     ORDER BY p.created_at DESC
+     LIMIT 200`,
+    [status]
   );
+  return rows;
+}
 
-  res.json(
-    rows.map(r => ({
-      id: r.user_id,
-      name: r.username,
-      email: r.email,
-      role: (r.scopes || '').includes('admin') ? 'admin' : 'member',
-      status:
-        r.verify_status === 'verified'
-          ? 'active'
-          : r.verify_status === 'pending'
-          ? 'pending'
-          : r.verify_status || 'pending',
-      createdAt: r.created_at,
-    }))
-  );
-});
-
-// verify / unverify user
-r.patch('/users/:user_id/verify', needAdmin, async (req, res) => {
-  const status = req.body?.status === 'verified' ? 'verified' : 'pending';
-  await pool.execute(
-    `UPDATE users 
-     SET verify_status=?, updated_at=NOW() 
-     WHERE user_id=? AND deleted_at IS NULL`,
-    [status, req.params.user_id]
-  );
-  res.json({ ok: true, status });
-});
-
-// ปรับ role: member | admin
-r.patch('/users/:user_id', needAdmin, async (req, res) => {
-  const role = req.body?.role === 'admin' ? 'admin' : 'member';
-
-  // หา scope admin
-  const [[adm]] = await pool.execute(
-    `SELECT scope_id FROM scopes WHERE scope_name='admin' LIMIT 1`
-  );
-  if (!adm) return res.status(500).json({ error: 'admin scope not found' });
-
-  if (role === 'admin') {
-    // upsert admin scope level 3
-    await pool.execute(
-      `INSERT INTO user_scopes (user_sc_id, user_id, scope_id, level, created_at, updated_at, deleted_at)
-       VALUES (REPLACE(UUID(),'-',''), ?, ?, 3, NOW(), NOW(), NULL)
-       ON DUPLICATE KEY UPDATE 
-         level=VALUES(level), 
-         updated_at=NOW(), 
-         deleted_at=NULL`,
-      [req.params.user_id, adm.scope_id]
-    );
-  } else {
-    // unassign: soft delete
-    await pool.execute(
-      `UPDATE user_scopes 
-       SET deleted_at=NOW(), updated_at=NOW()
-       WHERE user_id=? AND scope_id=? AND deleted_at IS NULL`,
-      [req.params.user_id, adm.scope_id]
-    );
+// GET /api/admin/posts?status=pending
+r.get("/posts", async (req, res) => {
+  const status = normalizePostStatus(req.query?.status) || "pending";
+  try {
+    const rows = await selectPosts(status);
+    return res.json(rows);
+  } catch (e) {
+    console.error("💥 [/api/admin/posts] error:", e);
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", code: e.code, sqlMessage: e.sqlMessage });
   }
-  res.json({ ok: true, role });
 });
 
-// soft delete ผู้ใช้
-r.delete('/users/:user_id', needAdmin, async (req, res) => {
-  await pool.execute(
-    `UPDATE users 
-     SET deleted_at=NOW(), updated_at=NOW() 
-     WHERE user_id=?`,
-    [req.params.user_id]
-  );
-  res.json({ ok: true });
+// POST /api/admin/posts/:id/approve
+r.post("/posts/:id/approve", async (req, res) => {
+  const id = req.params.id;
+  try {
+    await pool.execute(
+      `UPDATE posters
+          SET status = 'active', updated_at = NOW()
+        WHERE post_id = ? AND deleted_at IS NULL`,
+      [id]
+    );
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("💥 [/api/admin/posts/:id/approve] error:", e);
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", code: e.code, sqlMessage: e.sqlMessage });
+  }
 });
 
-// ===== POSTS =====
-r.get('/posts', needAdmin, async (req, res) => {
-  const [rows] = await pool.execute(
-    `SELECT p.post_id, p.title, p.status, p.price, p.created_at, u.username AS author
-     FROM posters p
-     LEFT JOIN users u ON u.user_id=p.user_id
-     WHERE p.deleted_at IS NULL
-     ORDER BY p.created_at DESC`
-  );
-
-  res.json(
-    rows.map(r => ({
-      id: r.post_id,
-      title: r.title,
-      author: r.author || '-',
-      status: r.status, // 'pending' | 'active' | 'rejected'
-      price: Number(r.price || 0),
-      createdAt: r.created_at,
-    }))
-  );
+// POST /api/admin/posts/:id/reject
+r.post("/posts/:id/reject", async (req, res) => {
+  const id = req.params.id;
+  try {
+    await pool.execute(
+      `UPDATE posters
+          SET status = 'rejected', updated_at = NOW()
+        WHERE post_id = ? AND deleted_at IS NULL`,
+      [id]
+    );
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("💥 [/api/admin/posts/:id/reject] error:", e);
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", code: e.code, sqlMessage: e.sqlMessage });
+  }
 });
 
-// อนุมัติโพสต์
-r.patch('/posts/:post_id/approve', needAdmin, async (req, res) => {
-  const approve = req.body?.approve !== false; // default true
-  const newStatus = approve ? 'active' : 'rejected';
+// PUT /api/admin/posts/:id  (แก้ title/price/status)
+r.put("/posts/:id", async (req, res) => {
+  const id = req.params.id;
+  const { title, price, status } = req.body || {};
+  const normStatus = normalizePostStatus(status);
 
-  await pool.execute(
-    `UPDATE posters
-     SET status=?, updated_at=NOW()
-     WHERE post_id=? AND deleted_at IS NULL`,
-    [newStatus, req.params.post_id]
-  );
-
-  res.json({ ok: true, status: newStatus });
+  try {
+    await pool.execute(
+      `UPDATE posters
+          SET title = COALESCE(?, title),
+              price = COALESCE(?, price),
+              status = COALESCE(?, status),
+              updated_at = NOW()
+        WHERE post_id = ? AND deleted_at IS NULL`,
+      [
+        title ?? null,
+        (price === undefined || price === null) ? null : Number(price),
+        normStatus ?? null,
+        id,
+      ]
+    );
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("💥 [/api/admin/posts/:id] update error:", e);
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", code: e.code, sqlMessage: e.sqlMessage });
+  }
 });
 
-// soft delete โพสต์
-r.delete('/posts/:post_id', needAdmin, async (req, res) => {
-  await pool.execute(
-    `UPDATE posters 
-     SET deleted_at=NOW(), updated_at=NOW() 
-     WHERE post_id=?`,
-    [req.params.post_id]
-  );
-  res.json({ ok: true });
+// DELETE /api/admin/posts/:id  (soft delete)
+r.delete("/posts/:id", async (req, res) => {
+  const id = req.params.id;
+  try {
+    await pool.execute(
+      `UPDATE posters
+          SET deleted_at = NOW(), updated_at = NOW()
+        WHERE post_id = ? AND deleted_at IS NULL`,
+      [id]
+    );
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("💥 [/api/admin/posts/:id] delete error:", e);
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", code: e.code, sqlMessage: e.sqlMessage });
+  }
 });
-
-// alias POST -> PATCH verify user
-r.post('/users/:user_id/verify', needAdmin, async (req, res) => {
-  const status = req.body?.status === 'verified' ? 'verified' : 'pending';
-  await pool.execute(
-    `UPDATE users SET verify_status=?, updated_at=NOW() WHERE user_id=? AND deleted_at IS NULL`,
-    [status, req.params.user_id]
-  );
-  res.json({ ok: true, status });
-});
-
 
 export default r;
-

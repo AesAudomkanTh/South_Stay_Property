@@ -1,25 +1,27 @@
 /* Post.css */
 
-
 /* Layout */
 .container {
   display: flex;
-  justify-content: center;   /* จัดแนวนอนให้อยู่กึ่งกลาง */
-  align-items: center;       /* จัดแนวตั้งให้อยู่กึ่งกลาง */
-  min-height: 100vh;         /* ใช้ความสูงเต็มหน้าจอ */
+  justify-content: center;   /* จัดให้อยู่กึ่งกลางแนวนอน */
+  align-items: flex-start;   /* อยู่บน แต่ยังตรงกลาง */
+  min-height: 100vh;
   padding: 2rem;
   background-color: #f3f4f6;
+
+  /* ✅ ให้ความกว้างสูงสุด และจัดกลางทั้งซ้ายขวา */
+  max-width: 1200px;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
-
 .card {
-  max-width: 1000px;
   width: 100%;
+  max-width: 700px;           /* จำกัดการ์ดไม่ให้กว้างเกินไป */
   background: white;
   padding: 2rem;
   border-radius: 1rem;
   box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
-  
 }
 
 /* Headings */
@@ -47,6 +49,7 @@ label {
 
 input[type="text"],
 input[type="number"],
+input[type="url"],
 select,
 textarea {
   width: 100%;
@@ -56,6 +59,8 @@ textarea {
   outline: none;
   transition: box-shadow 0.2s ease;
   box-sizing: border-box;
+  color: #1f2937;      /* ✅ สีตัวอักษร (แก้ปัญหาขาวมองไม่เห็น) */
+  background-color: #ffffff; /* ✅ พื้นหลังขาวชัดเจน */
 }
 
 input:focus,
